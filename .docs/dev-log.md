@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-10-12 (Phase 2, таск 4)
+
+**Сделано:** Phase 2, таск 4 «Цикл агента и запись в журнал» ✅.
+
+- `lib/agent/cycle.ts`: `runAgentCycle({ provider, journal, engine, config, runId })` — один `listCampaigns` и один `getReport` за цикл, потом по каждой кампании: снимок → движок → guardrails → запись в журнал → применение (`LOWER_BID`/`RAISE_BID` → `setBid`, `RAISE_BUDGET` → `setDailyBudget`, `PAUSE` → `suspend`). Применяется только `ACCEPTED` при выключенном dry-run. Возвращает `CycleResult` (тик, решения, сбои по кампаниям).
+- `lib/agent/types.ts`: `AgentEngine`, `AgentEngineName`, `CHANGE_ACTIONS`, `DecisionMetrics`, `JournalEntry`, `Journal`. `lib/agent/engines/rules.ts`: `rulesEngine` — обёртка над `decideByRules`.
+- `lib/agent/journal.ts`: `prismaJournal` (`record`, `setApplyError`, `lastChangeTicks` через `groupBy` + `_max(tick)`). `lib/agent/memory-journal.ts`: журнал в памяти с той же логикой.
+- `lib/ads/memory-provider.ts`: `AdsProvider` в памяти, сбои через `provider.failures`, `addRows` / `setTick` для сквозного сценария.
+- `type-check`/`lint`/`test` (236)/`build` зелёные. E2E не запускался: цикл ни к чему не подключён. `prismaJournal` unit-тестами не покрыт (тестовой БД нет), его проверит e2e фазы в таске 7.
+
+**Дальше:** Phase 2, таск 5 «Worker-контейнер + "один тик" через агента» (`lib/agent/tick.ts` с advisory lock, `worker/index.ts`, `tickAction`, переключатель таймера, сервис `worker` в Compose).
+
+**Заметки:**
+
+- Журнал, провайдер и движок приходят в цикл зависимостями: в `cycle.ts` нет Prisma и `fetch`. `engine` в записи — `engine.name` реального движка.
+- `runId` передаёт вызывающий (`tick.ts`): в `AdsProvider` нет понятия «прогон». Для таска 5: взять `ACTIVE`-прогон; конфиг читать из `agent_configs` (понятная ошибка, если строки нет — её создаёт только seed).
+- Отчёт запрашивается целиком, без `fromTick`: окно и сутки вырезает `aggregateWindow`. Если отчёт разрастётся — сузить запрос до последних `TICKS_PER_DAY` тиков.
+- Ошибка `listCampaigns` / `getReport` — цикл бросает, журнал не пишется; `tick.ts` решает, что делать. Сбой одной кампании (движок, `record`, `setApplyError`) попадает в `failures` и `console.error`, остальные кампании обрабатываются.
+- `lastChangeTick` считается по журналу: dry-run, `REJECTED`, `HOLD` / `WAIT_DATA` и записи с `applyError` паузу между изменениями не запускают — кампания не менялась.
+- Сверх плана: `AgentEngineName` (тип из `AGENT_ENGINES`) и `CycleConfig = RulesConfig + dryRun`. В `Journal.record` возвращается `{ id }`, он нужен для `setApplyError`.
+- Если `record` упал, записи нет, а кампания не меняется. Если упал сам `setApplyError` после неудачного применения, ошибка уходит в `failures`, а в журнале остаётся запись без `applyError`.
+
+---
+
 ## 2026-10-12 (Phase 2, таски 2–3)
 
 **Сделано:**

@@ -3,7 +3,7 @@
 // Сравнения в целых числах (копейки × проценты), чтобы границы не плыли из-за дробей.
 
 import { formatRub } from '@/lib/metrics/format';
-import type { CampaignSnapshot, Proposal, RulesConfig } from '@/lib/agent/types';
+import type { AgentEngine, CampaignSnapshot, Proposal, RulesConfig } from '@/lib/agent/types';
 
 const PERCENT = 100;
 
@@ -93,3 +93,9 @@ export function decideByRules(snapshot: CampaignSnapshot, config: RulesConfig): 
 		reason: `CPO ${cpoText} в пределах допустимого ${allowedText}, ${budgetText} — менять нечего`,
 	};
 }
+
+/** Движок `rules` в форме `AgentEngine` для цикла агента. */
+export const rulesEngine: AgentEngine = {
+	name: 'RULES',
+	decide: async (snapshot, config) => decideByRules(snapshot, config),
+};
