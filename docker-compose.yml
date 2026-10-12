@@ -1,4 +1,35 @@
 services:
+  migrate:
+    build:
+      context: .
+      target: builder
+    image: adpilot-migrate
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      target: runner
+    image: adpilot-web
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      AUTH_TRUST_HOST: 'true'
+      # standalone строит URL из HOSTNAME=0.0.0.0 — без AUTH_URL редиректы уходят на 0.0.0.0
+      AUTH_URL: ${AUTH_URL:-http://localhost:3000}
+    ports:
+      - '3000:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   db:
     image: postgres:17-alpine
     restart: unless-stopped

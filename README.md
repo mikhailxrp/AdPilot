@@ -92,6 +92,22 @@
 
 ---
 
+## Запуск
+
+```bash
+cp .env.example .env        # подставь свои значения (пароли, AUTH_SECRET: npx auth secret)
+docker compose up --build   # db → migrate (миграции + seed админа) → web
+```
+
+Панель — на `http://localhost:3000`, вход: `ADMIN_EMAIL` / `ADMIN_PASSWORD` из `.env`. Повторный запуск админа не дублирует.
+Если запускаешь не на `localhost:3000` — поменяй `AUTH_URL` в `.env`.
+
+Разработка без контейнера `web`: `docker compose up -d db`, затем `npx prisma migrate deploy && npx prisma db seed`, `npm run dev`.
+
+E2E: `npm run test:e2e` (нужны запущенный `db` с seed-ом; приложение Playwright поднимет сам или возьмёт уже работающее на `localhost:3000`).
+
+---
+
 ## Технологии
 
 Next.js, TypeScript, PostgreSQL + Prisma, Auth.js, Tailwind CSS + shadcn/ui, Yandex AI Studio. Сервисы web, worker и db запускаются через Docker Compose.
