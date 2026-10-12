@@ -8,6 +8,7 @@
     "start": "next start",
     "worker": "tsx worker/index.ts",
     "llm:check": "tsx scripts/llm-check.ts",
+    "eval:llm": "tsx scripts/eval-llm.ts",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
