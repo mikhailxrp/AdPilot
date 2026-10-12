@@ -156,6 +156,9 @@ model Decision {
   rejectReason String?         @map("reject_reason")
   rawResponse  String?         @map("raw_response")
   applyError   String?         @map("apply_error")
+  shadowAction DecisionAction? @map("shadow_action")
+  shadowAfter  Int?            @map("shadow_after")
+  shadowReason String?         @map("shadow_reason")
   createdAt    DateTime        @default(now()) @map("created_at")
 
   @@index([runId, tick])

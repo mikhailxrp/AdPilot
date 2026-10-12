@@ -116,7 +116,7 @@ export function SimulatorControls({ hasRun, timerEnabled }: SimulatorControlsPro
 					</p>
 				)}
 			</div>
-			<form onSubmit={form.handleSubmit(onReset)} noValidate className="w-full max-w-xs">
+			<form onSubmit={form.handleSubmit(onReset)} noValidate className="w-full max-w-xs shrink-0 sm:w-xs">
 				<FieldGroup>
 					<Controller
 						name="seed"

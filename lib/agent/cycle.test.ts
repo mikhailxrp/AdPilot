@@ -6,7 +6,7 @@ import { ENGINE_REJECTION_REASON, runAgentCycle, type CycleConfig } from '@/lib/
 import { createLlmEngine } from '@/lib/agent/engines/llm';
 import { rulesEngine } from '@/lib/agent/engines/rules';
 import { MemoryJournal } from '@/lib/agent/memory-journal';
-import type { JournalEntry } from '@/lib/agent/types';
+import type { AgentEngine, JournalEntry } from '@/lib/agent/types';
 import { FakeLLMClient, type FakeResponder } from '@/lib/llm/fake-client';
 import { LLMClientError } from '@/lib/llm/types';
 
@@ -62,16 +62,26 @@ function setup(config: Partial<CycleConfig> = {}) {
 	});
 	const journal = new MemoryJournal();
 	const run = () =>
-		runAgentCycle({ provider, journal, engine: rulesEngine, config: { ...CONFIG, ...config }, runId: RUN_ID });
+		runAgentCycle({
+			provider,
+			journal,
+			engine: rulesEngine,
+			shadowEngine: null,
+			config: { ...CONFIG, ...config },
+			runId: RUN_ID,
+		});
 	return { provider, journal, run };
 }
 
-/** Только кампания bad (60 кликов за окно, ставка 2 000) и движок llm с заданным ответом модели. */
-function setupLlm(respond: FakeResponder) {
+/**
+ * Только кампания bad (60 кликов за окно, ставка 2 000) и движок llm с заданным ответом модели.
+ * Тень по умолчанию — `rules`, как в tick.ts: на bad он предлагает LOWER_BID 2 000 → 1 600.
+ */
+function setupLlm(respond: FakeResponder, shadowEngine: AgentEngine | null = rulesEngine) {
 	const provider = new MemoryProvider({ campaigns: [campaign('bad')], rows: badRows(), currentTick: TICK });
 	const journal = new MemoryJournal();
 	const engine = createLlmEngine(new FakeLLMClient(respond));
-	const run = () => runAgentCycle({ provider, journal, engine, config: CONFIG, runId: RUN_ID });
+	const run = () => runAgentCycle({ provider, journal, engine, shadowEngine, config: CONFIG, runId: RUN_ID });
 	return { provider, journal, run };
 }
 
@@ -105,6 +115,9 @@ function priorChange(campaignId: string, tick: number): JournalEntry {
 		verdict: 'ACCEPTED',
 		rejectReason: null,
 		rawResponse: null,
+		shadowAction: null,
+		shadowAfter: null,
+		shadowReason: null,
 	};
 }
 
@@ -221,6 +234,17 @@ describe('runAgentCycle', () => {
 		await expect(run()).rejects.toMatchObject({ code: 'unavailable' });
 		expect(journal.entries).toEqual([]);
 	});
+
+	it('без теневого движка теневые поля пустые', async () => {
+		const { journal, run } = setup();
+
+		await run();
+
+		expect(journal.entries).toHaveLength(4);
+		for (const entry of journal.entries) {
+			expect(entry).toMatchObject({ shadowAction: null, shadowAfter: null, shadowReason: null });
+		}
+	});
 });
 
 describe('runAgentCycle с движком llm', () => {
@@ -272,7 +296,13 @@ describe('runAgentCycle с движком llm', () => {
 
 		const result = await run();
 
-		expect(journal.entries[0]).toMatchObject({ action: 'HOLD', verdict: 'REJECTED', rawResponse: null });
+		expect(journal.entries[0]).toMatchObject({
+			action: 'HOLD',
+			verdict: 'REJECTED',
+			rawResponse: null,
+			shadowAction: 'LOWER_BID',
+			shadowAfter: 1_600,
+		});
 		expect(journal.entries[0]?.rejectReason).toContain('Модель недоступна');
 		expect(result.failures).toEqual([]);
 		expect((await campaignOf(provider, 'bad')).bid).toBe(2_000);
@@ -292,5 +322,45 @@ describe('runAgentCycle с движком llm', () => {
 		});
 		expect(journal.entries[0]?.rejectReason).toContain('больше допустимых 20%');
 		expect((await campaignOf(provider, 'bad')).bid).toBe(2_000);
+	});
+
+	it('теневое решение rules пишется в запись llm и не применяется', async () => {
+		const { provider, journal, run } = setupLlm(() => answer('HOLD', null));
+
+		await run();
+
+		expect(journal.entries).toHaveLength(1);
+		expect(journal.entries[0]).toMatchObject({
+			engine: 'LLM',
+			action: 'HOLD',
+			verdict: 'ACCEPTED',
+			shadowAction: 'LOWER_BID',
+			shadowAfter: 1_600,
+		});
+		expect(journal.entries[0]?.shadowReason).toEqual(expect.any(String));
+		expect((await campaignOf(provider, 'bad')).bid).toBe(2_000);
+	});
+
+	it('теневой движок упал → основное решение записано и применено, теневые поля пустые', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		const failingShadow: AgentEngine = {
+			name: 'RULES',
+			decide: async () => {
+				throw new Error('сбой тени');
+			},
+		};
+		const { provider, journal, run } = setupLlm(() => answer('LOWER_BID', 17), failingShadow);
+
+		const result = await run();
+
+		expect(journal.entries[0]).toMatchObject({
+			action: 'LOWER_BID',
+			verdict: 'ACCEPTED',
+			shadowAction: null,
+			shadowAfter: null,
+			shadowReason: null,
+		});
+		expect(result.failures).toEqual([]);
+		expect((await campaignOf(provider, 'bad')).bid).toBe(1_700);
 	});
 });

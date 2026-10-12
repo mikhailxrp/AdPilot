@@ -34,6 +34,7 @@ export function JournalTable({ rows }: JournalTableProps) {
 					<TableHead>Действие</TableHead>
 					<TableHead>Было → стало</TableHead>
 					<TableHead>Причина</TableHead>
+					<TableHead>rules решил бы</TableHead>
 					<TableHead>Метрики</TableHead>
 				</TableRow>
 			</TableHeader>
@@ -58,6 +59,32 @@ export function JournalTable({ rows }: JournalTableProps) {
 							)}
 							{row.applyError && (
 								<p className="text-sm text-destructive">Ошибка применения: {row.applyError}</p>
+							)}
+							{row.rawResponse && (
+								<details className="mt-1">
+									<summary className="cursor-pointer text-sm">Ответ модели</summary>
+									<pre className="mt-2 max-h-60 overflow-auto rounded-md bg-muted p-2 text-xs break-all whitespace-pre-wrap">
+										{row.rawResponse}
+									</pre>
+								</details>
+							)}
+						</TableCell>
+						<TableCell className="max-w-xs whitespace-normal">
+							{row.shadowAction ? (
+								<div className="space-y-1">
+									<div className="flex flex-wrap items-center gap-1">
+										<span>{ACTION_LABELS[row.shadowAction]}</span>
+										{row.shadowAfter !== null && (
+											<span className="whitespace-nowrap">→ {formatRub(row.shadowAfter)}</span>
+										)}
+										{row.shadowAction !== row.action && <Badge variant="secondary">Разошлись</Badge>}
+									</div>
+									{row.shadowReason && (
+										<p className="text-sm text-muted-foreground">{row.shadowReason}</p>
+									)}
+								</div>
+							) : (
+								<span className="text-sm text-muted-foreground">{NO_VALUE}</span>
 							)}
 						</TableCell>
 						<TableCell>

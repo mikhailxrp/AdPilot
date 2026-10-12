@@ -1,6 +1,7 @@
 // Цикл агента: статистика → метрики → решение → guardrails → журнал → применение.
 // Журнал, провайдер и движок приходят зависимостями — цикл не знает ни Prisma, ни сети.
 // Решение пишется в журнал до применения: не записалось — кампания не меняется.
+// Теневой движок решает на том же снимке только для сравнения: его ответ пишется в ту же запись и не применяется.
 
 import type { AdsCampaign, AdsProvider } from '@/lib/ads/types';
 import { checkProposal, type GuardrailResult } from '@/lib/agent/guardrails';
@@ -8,6 +9,7 @@ import { buildSnapshot } from '@/lib/agent/window';
 import {
 	CHANGE_ACTIONS,
 	type AgentEngine,
+	type CampaignSnapshot,
 	type DecisionAction,
 	type DecisionMetrics,
 	type DecisionVerdict,
@@ -26,6 +28,8 @@ export interface CycleParams {
 	provider: AdsProvider;
 	journal: Journal;
 	engine: AgentEngine;
+	/** Второй движок для сравнения (`rules` при `engine = LLM`); `null` — без теневого решения. */
+	shadowEngine: AgentEngine | null;
 	config: CycleConfig;
 	runId: string;
 }
@@ -88,7 +92,30 @@ function engineRejection(rejectReason: string): { proposal: Proposal; check: Gua
 	};
 }
 
-export async function runAgentCycle({ provider, journal, engine, config, runId }: CycleParams): Promise<CycleResult> {
+/** Теневое решение: сбой или отказ теневого движка не мешают основному — тогда `null`. */
+async function decideShadow(
+	shadowEngine: AgentEngine | null,
+	snapshot: CampaignSnapshot,
+	config: CycleConfig,
+): Promise<Proposal | null> {
+	if (!shadowEngine) return null;
+	try {
+		const decided = await shadowEngine.decide(snapshot, config);
+		return decided.ok ? decided.proposal : null;
+	} catch (error) {
+		console.error(`Теневой движок ${shadowEngine.name} упал на кампании ${snapshot.campaign.id}:`, error);
+		return null;
+	}
+}
+
+export async function runAgentCycle({
+	provider,
+	journal,
+	engine,
+	shadowEngine,
+	config,
+	runId,
+}: CycleParams): Promise<CycleResult> {
 	const [campaigns, report] = await Promise.all([provider.listCampaigns(), provider.getReport()]);
 	const { currentTick } = report;
 	const lastChangeTicks = await journal.lastChangeTicks(
@@ -103,6 +130,7 @@ export async function runAgentCycle({ provider, journal, engine, config, runId }
 			const rows = report.rows.filter((row) => row.campaignId === campaign.id);
 			const snapshot = buildSnapshot(campaign, rows, currentTick, config.windowTicks);
 			const decided = await engine.decide(snapshot, config);
+			const shadow = await decideShadow(shadowEngine, snapshot, config);
 			const { proposal, check } = decided.ok
 				? {
 						proposal: decided.proposal,
@@ -135,6 +163,9 @@ export async function runAgentCycle({ provider, journal, engine, config, runId }
 				verdict: check.verdict,
 				rejectReason: check.verdict === 'REJECTED' ? check.rejectReason : null,
 				rawResponse: decided.rawResponse,
+				shadowAction: shadow?.action ?? null,
+				shadowAfter: shadow?.after ?? null,
+				shadowReason: shadow?.reason ?? null,
 			};
 
 			const { id } = await journal.record(entry);

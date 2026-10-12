@@ -77,6 +77,10 @@ export interface JournalEntry {
 	verdict: DecisionVerdict;
 	rejectReason: string | null;
 	rawResponse: string | null;
+	/** Теневое решение второго движка на том же снимке (`rules` при `engine = LLM`): не проверяется и не применяется. */
+	shadowAction: DecisionAction | null;
+	shadowAfter: number | null;
+	shadowReason: string | null;
 }
 
 /** Журнал решений: только дополняется, единственное изменение — `applyError`. */

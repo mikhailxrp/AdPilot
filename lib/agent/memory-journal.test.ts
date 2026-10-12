@@ -25,6 +25,9 @@ function entry(overrides: Partial<JournalEntry> = {}): JournalEntry {
 		verdict: 'ACCEPTED',
 		rejectReason: null,
 		rawResponse: null,
+		shadowAction: null,
+		shadowAfter: null,
+		shadowReason: null,
 		...overrides,
 	};
 }

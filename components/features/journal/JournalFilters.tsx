@@ -1,7 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { ACTION_LABELS } from '@/lib/agent/action-labels';
 import type { JournalCampaign } from '@/lib/agent/journal-queries';
 import { DECISION_ACTIONS } from '@/lib/agent/types';
@@ -21,6 +23,7 @@ interface FilterItem {
 }
 
 const ALL = 'all';
+const DIVERGED_ID = 'journal-diverged';
 
 export function JournalFilters({ campaigns, filters }: JournalFiltersProps) {
 	const router = useRouter();
@@ -43,6 +46,10 @@ export function JournalFilters({ campaigns, filters }: JournalFiltersProps) {
 		router.replace(buildJournalHref(next, 1));
 	};
 
+	const handleDivergedChange = (checked: boolean) => {
+		router.replace(buildJournalHref({ ...filters, diverged: checked ? true : undefined }, 1));
+	};
+
 	const renderSelect = (key: FilterKey, label: string, items: FilterItem[], current: string | undefined) => (
 		<Select items={items} value={current ?? ALL} onValueChange={(value) => handleChange(key, value)}>
 			<SelectTrigger aria-label={label} className="min-h-10 min-w-44">
@@ -63,6 +70,10 @@ export function JournalFilters({ campaigns, filters }: JournalFiltersProps) {
 			{renderSelect('campaign', 'Кампания', campaignItems, filters.campaign)}
 			{renderSelect('action', 'Действие', actionItems, filters.action)}
 			{renderSelect('engine', 'Движок', engineItems, filters.engine)}
+			<div className="flex min-h-10 items-center gap-2">
+				<Switch id={DIVERGED_ID} checked={filters.diverged ?? false} onCheckedChange={handleDivergedChange} />
+				<Label htmlFor={DIVERGED_ID}>Только расхождения</Label>
+			</div>
 		</div>
 	);
 }

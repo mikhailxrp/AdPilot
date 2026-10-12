@@ -59,7 +59,14 @@ async function runScenario(config: CycleConfig, ticks: number): Promise<Scenario
 		});
 		provider.addRows(rows);
 
-		const cycle = await runAgentCycle({ provider, journal, engine: rulesEngine, config, runId: RUN_ID });
+		const cycle = await runAgentCycle({
+			provider,
+			journal,
+			engine: rulesEngine,
+			shadowEngine: null,
+			config,
+			runId: RUN_ID,
+		});
 		expect(cycle.failures).toEqual([]);
 	}
 

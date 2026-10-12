@@ -4,12 +4,19 @@ import { AGENT_ENGINES } from '@/lib/validations/agent-config';
 
 export const JOURNAL_PAGE_SIZE = 50;
 const FIRST_PAGE = 1;
+/** Значение `diverged` в URL: «только записи, где движки разошлись». */
+const DIVERGED_PARAM_VALUE = '1';
 
 /** Невалидное значение параметра URL не ломает страницу — откатываемся к «без фильтра» / первой странице. */
 export const journalFiltersSchema = z.object({
 	campaign: z.string().min(1).optional().catch(undefined),
 	action: z.enum(DECISION_ACTIONS).optional().catch(undefined),
 	engine: z.enum(AGENT_ENGINES).optional().catch(undefined),
+	diverged: z
+		.literal(DIVERGED_PARAM_VALUE)
+		.transform(() => true as const)
+		.optional()
+		.catch(undefined),
 	page: z.coerce.number().int().min(FIRST_PAGE).catch(FIRST_PAGE),
 });
 
@@ -27,6 +34,7 @@ export function buildJournalHref(filters: Omit<JournalFilters, 'page'>, page: nu
 	if (filters.campaign) params.set('campaign', filters.campaign);
 	if (filters.action) params.set('action', filters.action);
 	if (filters.engine) params.set('engine', filters.engine);
+	if (filters.diverged) params.set('diverged', DIVERGED_PARAM_VALUE);
 	if (page > FIRST_PAGE) params.set('page', String(page));
 
 	const query = params.toString();

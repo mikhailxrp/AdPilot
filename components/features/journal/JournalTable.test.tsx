@@ -17,6 +17,24 @@ const BASE_ROW: JournalRow = {
 	dryRun: false,
 	applyError: null,
 	metrics: null,
+	rawResponse: null,
+	shadowAction: null,
+	shadowAfter: null,
+	shadowReason: null,
+};
+
+const LLM_ROW: JournalRow = {
+	...BASE_ROW,
+	id: 'd2',
+	engine: 'LLM',
+	action: 'HOLD',
+	before: null,
+	after: null,
+	reason: 'Ждём ещё сутки',
+	rawResponse: '{"action":"HOLD","value":null,"reason":"Ждём ещё сутки"}',
+	shadowAction: 'LOWER_BID',
+	shadowAfter: 8_000,
+	shadowReason: 'CPO выше допустимого',
 };
 
 describe('JournalTable', () => {
@@ -48,6 +66,37 @@ describe('JournalTable', () => {
 
 		expect(screen.getByText(/мок недоступен/)).toBeTruthy();
 		expect(screen.getByText('dry-run')).toBeTruthy();
+	});
+
+	it('у записи LLM видно, что решил бы rules: действие, рубли, причина и «Разошлись»', () => {
+		render(<JournalTable rows={[LLM_ROW]} />);
+
+		expect(screen.getByRole('columnheader', { name: 'rules решил бы' })).toBeTruthy();
+		expect(screen.getByText('Снижение ставки')).toBeTruthy();
+		expect(screen.getByText(/→\s80,00\s₽/)).toBeTruthy();
+		expect(screen.getByText('CPO выше допустимого')).toBeTruthy();
+		expect(screen.getByText('Разошлись')).toBeTruthy();
+	});
+
+	it('одинаковые действия — без «Разошлись»', () => {
+		render(<JournalTable rows={[{ ...LLM_ROW, action: 'LOWER_BID', before: 10_000, after: 8_000 }]} />);
+
+		expect(screen.queryByText('Разошлись')).toBeNull();
+	});
+
+	it('у записи rules в колонке сравнения прочерк, ответа модели нет', () => {
+		render(<JournalTable rows={[BASE_ROW]} />);
+
+		const cells = screen.getAllByRole('cell');
+		expect(cells[5]?.textContent).toBe('—');
+		expect(screen.queryByText('Ответ модели')).toBeNull();
+	});
+
+	it('сырой ответ модели под «Ответ модели»', () => {
+		render(<JournalTable rows={[LLM_ROW]} />);
+
+		expect(screen.getByText('Ответ модели')).toBeTruthy();
+		expect(screen.getByText(LLM_ROW.rawResponse ?? '')).toBeTruthy();
 	});
 
 	it('кнопок «изменить» и «удалить» нет', () => {

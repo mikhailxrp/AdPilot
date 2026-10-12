@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-10-12 (Phase 3, таск 5)
+
+**Сделано:** Phase 3, таск 5 «Сравнение движков в журнале» ✅.
+
+- Миграция `20261012204809_decision_shadow`: nullable `shadowAction`, `shadowAfter` (копейки), `shadowReason` в `Decision`; старые записи не тронуты, `database.md` обновлён.
+- `lib/agent/cycle.ts`: `CycleParams.shadowEngine: AgentEngine | null`; `decideShadow` спрашивает теневой движок на том же снимке и пишет его **предложение** (до guardrails, не применяется). Сбой или отказ тени → `shadow*` = `null`, основное решение пишется и применяется как обычно.
+- `lib/agent/tick.ts`: `shadowEngineFor(engine)` — при `LLM` тень `rulesEngine`, при `RULES` — `null` (модель не вызывается). Цикл конкретных движков не знает.
+- `lib/validations/journal.ts`: `diverged=1` в URL (мусор → без фильтра), `buildJournalHref` его сохраняет — пагинация не менялась.
+- `lib/agent/journal-queries.ts`: фильтр «разошлись» — `shadowAction` не `null` и `action ≠ shadowAction` через field reference (`db.decision.fields.shadowAction`, без preview-флага в Prisma 7), в `AND`, чтобы не перетереть фильтр по действию. Проверено на БД в откатываемой транзакции.
+- `/journal`: колонка «rules решил бы» (действие, ₽, причина; у `RULES` — «—»), бейдж «Разошлись», `<details>` «Ответ модели» с `rawResponse` (показ сырого ответа не был закреплён ни за одним таском — сделан здесь), `Switch` «Только расхождения».
+- Вне таска: на `/simulator` кнопка «Сбросить» сжималась во время тика — `@container` в shadcn `FieldGroup` обнуляет min-content формы. Форме дано `shrink-0 sm:w-xs`.
+- `type-check`/`lint`/`test` (369)/`build` зелёные.
+
+**Дальше:** Phase 3, таск 6 «Оценочные сценарии».
+
+**Заметки:**
+
+- Расхождение считается только по действию: тот же `LOWER_BID` с разной ставкой — не «разошлись».
+- `FakeLLMClient` из env всё ещё отвечает `HOLD` — для e2e таска 7 он должен отвечать решением `rules`, тогда фильтр «разошлись» в e2e будет пуст (это ожидаемо).
+- `/journal` в браузере проверял пользователь; агент не мог войти — доступ к `.env` с учётными данными закрыт.
+
+---
+
 ## 2026-10-12 (Phase 3, таск 4)
 
 **Сделано:** Phase 3, таск 4 «Переключатель `rules` | `llm` на `/simulator`» ✅.

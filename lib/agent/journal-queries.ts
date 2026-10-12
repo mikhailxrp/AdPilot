@@ -1,7 +1,7 @@
 // Чтение журнала для страницы /journal: решения активного прогона. Записи не меняются.
 
 import { db } from '@/lib/db';
-import { RunStatus } from '@/generated/prisma/client';
+import { RunStatus, type Prisma } from '@/generated/prisma/client';
 import type { AgentEngineName, DecisionAction, DecisionMetrics, DecisionVerdict } from '@/lib/agent/types';
 import { JOURNAL_PAGE_SIZE, parseDecisionMetrics, type JournalFilters } from '@/lib/validations/journal';
 
@@ -19,6 +19,12 @@ export interface JournalRow {
 	dryRun: boolean;
 	applyError: string | null;
 	metrics: DecisionMetrics | null;
+	/** Сырой ответ LLM; у `rules` — `null`. */
+	rawResponse: string | null;
+	/** Что решил бы `rules` на тех же цифрах; у записей `rules` — `null`. */
+	shadowAction: DecisionAction | null;
+	shadowAfter: number | null;
+	shadowReason: string | null;
 }
 
 export interface JournalPage {
@@ -48,11 +54,18 @@ export async function getJournalPage(filters: JournalFilters): Promise<JournalPa
 	const runId = await getActiveRunId();
 	if (!runId) return null;
 
-	const where = {
+	const where: Prisma.DecisionWhereInput = {
 		runId,
 		...(filters.campaign && { campaignId: filters.campaign }),
 		...(filters.action && { action: filters.action }),
 		...(filters.engine && { engine: filters.engine }),
+		// «Движки разошлись»: сравнение двух колонок; в AND, чтобы не перетереть фильтр по action
+		...(filters.diverged && {
+			AND: [
+				{ shadowAction: { not: null } },
+				{ action: { not: { equals: db.decision.fields.shadowAction } } },
+			],
+		}),
 	};
 
 	const total = await db.decision.count({ where });
@@ -77,6 +90,10 @@ export async function getJournalPage(filters: JournalFilters): Promise<JournalPa
 			dryRun: true,
 			applyError: true,
 			metrics: true,
+			rawResponse: true,
+			shadowAction: true,
+			shadowAfter: true,
+			shadowReason: true,
 			campaign: { select: { name: true } },
 		},
 	});

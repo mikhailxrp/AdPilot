@@ -27,6 +27,14 @@ describe('parseJournalFilters', () => {
 		expect(parseJournalFilters({ page }).page).toBe(1);
 	});
 
+	it('diverged=1 включает фильтр «движки разошлись»', () => {
+		expect(parseJournalFilters({ diverged: '1' })).toEqual({ diverged: true, page: 1 });
+	});
+
+	it.each(['0', 'true', '', 'yes'])('diverged=%j откатывается к «без фильтра»', (diverged) => {
+		expect(parseJournalFilters({ diverged })).toEqual({ page: 1 });
+	});
+
 	it('повторяющийся параметр (массив) не ломает разбор', () => {
 		expect(parseJournalFilters({ action: ['PAUSE', 'HOLD'] })).toEqual({ page: 1 });
 	});
@@ -41,6 +49,11 @@ describe('buildJournalHref', () => {
 		expect(buildJournalHref({ campaign: 'c1', action: 'PAUSE', engine: 'RULES' }, 2)).toBe(
 			'/journal?campaign=c1&action=PAUSE&engine=RULES&page=2',
 		);
+	});
+
+	it('добавляет diverged=1 только когда фильтр включён', () => {
+		expect(buildJournalHref({ engine: 'LLM', diverged: true }, 1)).toBe('/journal?engine=LLM&diverged=1');
+		expect(buildJournalHref({ engine: 'LLM', diverged: undefined }, 1)).toBe('/journal?engine=LLM');
 	});
 });
 

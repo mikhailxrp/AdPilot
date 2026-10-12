@@ -18,6 +18,11 @@ function createEngine(name: AgentEngineName): AgentEngine {
 	return name === 'LLM' ? createLlmEngine(createLLMClientFromEnv()) : rulesEngine;
 }
 
+/** При `LLM` на том же снимке спрашиваем `rules` — для сравнения в журнале. При `RULES` модель не вызывается. */
+function shadowEngineFor(engine: AgentEngine): AgentEngine | null {
+	return engine.name === 'LLM' ? rulesEngine : null;
+}
+
 export async function runAgentTick(): Promise<TickOutcome> {
 	return runTickWith({
 		withLock: withTickLock,
@@ -37,6 +42,7 @@ export async function runAgentTick(): Promise<TickOutcome> {
 				provider: createMockProviderFromEnv(),
 				journal: prismaJournal,
 				engine,
+				shadowEngine: shadowEngineFor(engine),
 				config,
 				runId,
 			}),
