@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-10-12 (Phase 3, таск 1)
+
+**Сделано:** Phase 3, таск 1 «`LLMClient` + проверка модели Yandex AI Studio» ✅.
+
+- `lib/llm/`: интерфейс `LLMClient` (`complete({ system, user, jsonSchema? })` → `{ content, raw }`), `LLMClientError` с кодами `unauthorized` / `rate_limited` / `bad_request` / `unavailable` / `invalid_response`.
+- `YandexLLMClient` — обычный `fetch` к `https://llm.api.cloud.yandex.net/v1/chat/completions`, без пакета `openai`; «конверт» ответа проверяется Zod; режимы `json_schema` (по умолчанию) / `json_object` / `text`. `FakeLLMClient` — ответчик + запомненные запросы. `createLLMClientFromEnv()` — `LLM_CLIENT=yandex|fake`.
+- `npm run llm:check [modelUri] [режим]` — ручной запрос к настоящей модели. Прогон: `yandexgpt/latest` и `yandexgpt-lite/latest` × `json_schema`/`json_object` — все 4 ответа прошли схему, ~1–1,5 с, ~120 токенов. Выбрано `yandexgpt/latest` + `json_schema` (lite обосновывает хуже). Записано в `prd.md`, открытый вопрос закрыт.
+- `type-check`/`lint`/`test` (305)/`build` зелёные.
+
+**Дальше:** Phase 3, таск 2 «Схема ответа, промпт и разбор (чистые функции)».
+
+**Заметки:**
+
+- Ключ принимается как `Authorization: Bearer <key>`, каталог — в `OpenAI-Project`.
+- `LLM_MODEL_URI` должен быть полным URI (`gpt://<folder>/yandexgpt/latest`); короткое `yandexgpt/latest` → 400 «Failed to parse model URI». Пусто — URI собирается из `YANDEX_FOLDER_ID`.
+- В локальном `.env` ключ записан как `AI_YANDEX_KEY`, а код читает `YANDEX_API_KEY` — переименовать до таска 3 (worker).
+- Гарантия соответствия схеме в режиме `json_schema` не проверялась на «плохих» ответах — Zod-проверка в таске 2 обязательна.
+
+---
+
 ## 2026-10-12 (Phase 2, таск 7)
 
 **Сделано:** Phase 2, таск 7 «Подбор порогов, сквозной сценарий, e2e фазы» ✅. **Phase 2 завершена.**
