@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { resetAgentConfig } from './helpers/agent-config';
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? '';
@@ -40,6 +41,8 @@ test.describe('симулятор', () => {
 		if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
 			throw new Error('ADMIN_EMAIL и ADMIN_PASSWORD должны быть заданы в .env');
 		}
+		// Тесты переключателей ждут дефолты: таймер выключен, движок RULES
+		resetAgentConfig();
 	});
 
 	test('гость на /simulator уходит на /login', async ({ page }) => {
@@ -91,6 +94,28 @@ test.describe('симулятор', () => {
 			const current = page.getByRole('switch', { name: 'Таймер агента' });
 			if (await current.isChecked()) await current.click();
 			await expect(current).not.toBeChecked();
+		}
+	});
+
+	test('переключатель движка сохраняется после перезагрузки', async ({ page }) => {
+		await login(page);
+		await page.goto('/simulator');
+		const engines = page.getByRole('radiogroup', { name: 'Движок агента' });
+		await expect(engines.getByRole('radio', { name: 'Правила' })).toBeChecked();
+
+		try {
+			await engines.getByRole('radio', { name: 'LLM' }).click();
+			await expect(engines.getByRole('radio', { name: 'LLM' })).toBeChecked();
+			await page.reload();
+			const reloaded = page.getByRole('radiogroup', { name: 'Движок агента' });
+			await expect(reloaded.getByRole('radio', { name: 'LLM' })).toBeChecked();
+			await expect(reloaded.getByRole('radio', { name: 'Правила' })).not.toBeChecked();
+		} finally {
+			// Сценарии Phase 2 идут на RULES — не оставляем LLM другим тестам
+			await page.goto('/simulator');
+			const rules = page.getByRole('radiogroup', { name: 'Движок агента' }).getByRole('radio', { name: 'Правила' });
+			if (!(await rules.isChecked())) await rules.click();
+			await expect(rules).toBeChecked();
 		}
 	});
 

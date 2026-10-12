@@ -1,4 +1,5 @@
 import { CampaignsTable } from '@/components/features/simulator/CampaignsTable';
+import { EngineToggle } from '@/components/features/simulator/EngineToggle';
 import { SimulatorControls } from '@/components/features/simulator/SimulatorControls';
 import { requireAdmin } from '@/lib/access';
 import { getAgentConfig } from '@/lib/agent/config';
@@ -20,7 +21,10 @@ export async function SimulatorView() {
 					<p className="text-muted-foreground">Прогона нет — сбросьте симулятор с seed.</p>
 				)}
 			</div>
-			<SimulatorControls hasRun={run !== null} timerEnabled={config.timerEnabled} />
+			<div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+				<SimulatorControls hasRun={run !== null} timerEnabled={config.timerEnabled} />
+				<EngineToggle engine={config.engine} />
+			</div>
 			{run && <CampaignsTable campaigns={run.campaigns} />}
 		</section>
 	);

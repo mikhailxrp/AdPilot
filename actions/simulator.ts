@@ -6,7 +6,12 @@ import { runAgentTick } from '@/lib/agent/tick';
 import { TickError } from '@/lib/agent/tick-core';
 import { db } from '@/lib/db';
 import { resetRun, SimulatorError } from '@/lib/simulator/service';
-import { AGENT_CONFIG_ID, timerToggleSchema } from '@/lib/validations/agent-config';
+import {
+	AGENT_CONFIG_ID,
+	engineToggleSchema,
+	timerToggleSchema,
+	type EngineToggleInput,
+} from '@/lib/validations/agent-config';
 import { resetSchema } from '@/lib/validations/simulator';
 
 export type ActionResult<T = void> = {
@@ -70,6 +75,26 @@ export async function setTimerAction(input: unknown): Promise<ActionResult<{ tim
 		});
 		revalidatePath(SIMULATOR_PATH);
 		return { success: true, data: { timerEnabled: parsed.data.timerEnabled } };
+	} catch (error) {
+		return { success: false, error: toErrorMessage(error) };
+	}
+}
+
+export async function setEngineAction(input: unknown): Promise<ActionResult<EngineToggleInput>> {
+	const parsed = engineToggleSchema.safeParse(input);
+	if (!parsed.success) {
+		return { success: false, error: parsed.error.issues[0]?.message ?? UNEXPECTED_ERROR_MESSAGE };
+	}
+
+	await requireAdmin();
+
+	try {
+		await db.agentConfig.update({
+			where: { id: AGENT_CONFIG_ID },
+			data: { engine: parsed.data.engine },
+		});
+		revalidatePath(SIMULATOR_PATH);
+		return { success: true, data: { engine: parsed.data.engine } };
 	} catch (error) {
 		return { success: false, error: toErrorMessage(error) };
 	}

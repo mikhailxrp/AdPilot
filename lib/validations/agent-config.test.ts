@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { AGENT_CONFIG_BOUNDS, agentConfigSchema, timerToggleSchema } from '@/lib/validations/agent-config';
+import {
+	AGENT_CONFIG_BOUNDS,
+	agentConfigSchema,
+	engineToggleSchema,
+	timerToggleSchema,
+} from '@/lib/validations/agent-config';
 
 const bounds = Object.entries(AGENT_CONFIG_BOUNDS);
 
@@ -49,5 +54,20 @@ describe('timerToggleSchema', () => {
 
 	it.each([{}, { timerEnabled: 'true' }, { timerEnabled: 1 }, { timerEnabled: null }])('отклоняет %j', (input) => {
 		expect(timerToggleSchema.safeParse(input).success).toBe(false);
+	});
+});
+
+describe('engineToggleSchema', () => {
+	it.each(['RULES', 'LLM'] as const)('принимает %s', (engine) => {
+		expect(engineToggleSchema.parse({ engine })).toEqual({ engine });
+	});
+
+	it.each([{}, { engine: 'GPT' }, { engine: 'llm' }, { engine: 1 }, { engine: null }])('отклоняет %j', (input) => {
+		expect(engineToggleSchema.safeParse(input).success).toBe(false);
+	});
+
+	it('отдаёт понятное сообщение об ошибке', () => {
+		const result = engineToggleSchema.safeParse({ engine: 'GPT' });
+		expect(result.error?.issues[0]?.message).toBe('Неизвестный движок агента');
 	});
 });

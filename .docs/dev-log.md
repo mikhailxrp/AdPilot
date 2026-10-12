@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-10-12 (Phase 3, таск 4)
+
+**Сделано:** Phase 3, таск 4 «Переключатель `rules` | `llm` на `/simulator`» ✅.
+
+- `lib/validations/agent-config.ts`: `engineToggleSchema` `{ engine: 'RULES' | 'LLM' }` без дефолта — значение обязано прийти явно, как у `timerToggleSchema`.
+- `actions/simulator.ts`: `setEngineAction` — `safeParse` → `requireAdmin()` → `agentConfig.update({ engine })` → `revalidatePath('/simulator')`. В плане фазы `requireUser` заменён на `requireAdmin` (другой функции в проекте нет).
+- `components/features/simulator/EngineToggle.tsx`: Client Component, радиогруппа «Правила» / «LLM» на shadcn `radio-group` (Base UI) + `FieldSet`/`FieldLegend`. Пока идёт запрос — заблокирована; отказ сервера → выбор прежний, ошибка `role="alert"`. В `SimulatorView` — рядом с блоком управления.
+- Радиогруппа, а не Switch: движок — выбор одного из двух, а не «вкл/выкл». Настроенность LLM при переключении не проверяется — это уже делает тик (`TickError` до тика мира).
+- `tests/e2e/simulator.spec.ts`: тест «переключатель движка сохраняется после перезагрузки» (в `finally` возвращает `RULES`); в `beforeAll` добавлен `resetAgentConfig()` — тесты переключателей ждут дефолты.
+- `type-check`/`lint`/`test` (356)/`build`/`test:e2e` (19) зелёные.
+
+**Дальше:** Phase 3, таск 5 «Сравнение движков в журнале».
+
+**Заметки:**
+
+- Полный тик на `LLM` через UI в этой сессии не прогонялся: e2e проверяет только сохранение выбора, сквозной тик на `llm` — таск 7 (`LLM_CLIENT=fake`). В `.env` уже `LLM_CLIENT=yandex` — ручной тик пойдёт в настоящую модель (платно).
+- Вёрстку на 375px глазами не проверял: на `lg:` переключатель встаёт рядом с блоком управления, ниже — под ним.
+- Worker локально не запущен (в Docker поднята только `db`): тики идут кнопкой «Один тик»; таймер работает только при `npm run worker` или `docker compose up`.
+
+---
+
 ## 2026-10-12 (Phase 3, таск 3)
 
 **Сделано:** Phase 3, таск 3 «Движок `llm` в цикле агента» ✅.

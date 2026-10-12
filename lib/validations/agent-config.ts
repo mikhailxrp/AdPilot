@@ -50,3 +50,8 @@ export type AgentConfigInput = z.infer<typeof agentConfigSchema>;
 export const timerToggleSchema = z.object({ timerEnabled: z.boolean('Ожидается true или false') });
 
 export type TimerToggleInput = z.infer<typeof timerToggleSchema>;
+
+/** Переключатель движка на /simulator: без дефолта — значение обязано прийти явно. */
+export const engineToggleSchema = z.object({ engine: z.enum(AGENT_ENGINES, 'Неизвестный движок агента') });
+
+export type EngineToggleInput = z.infer<typeof engineToggleSchema>;
