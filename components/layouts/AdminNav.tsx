@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 const NAV_ITEMS = [
 	{ href: '/dashboard', label: 'Дашборд' },
 	{ href: '/simulator', label: 'Симулятор' },
+	{ href: '/journal', label: 'Журнал' },
 ] as const;
 
 export function AdminNav() {

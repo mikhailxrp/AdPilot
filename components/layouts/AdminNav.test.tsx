@@ -19,6 +19,15 @@ describe('AdminNav', () => {
 		expect(screen.getByRole('link', { name: 'Симулятор' }).getAttribute('href')).toBe('/simulator');
 	});
 
+	it('показывает ссылку на журнал', () => {
+		mockPathname.mockReturnValue('/journal');
+		render(<AdminNav />);
+
+		const link = screen.getByRole('link', { name: 'Журнал' });
+		expect(link.getAttribute('href')).toBe('/journal');
+		expect(link.getAttribute('aria-current')).toBe('page');
+	});
+
 	it('помечает активной только ссылку текущей страницы', () => {
 		mockPathname.mockReturnValue('/simulator');
 		render(<AdminNav />);

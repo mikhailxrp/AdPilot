@@ -7,6 +7,8 @@ const BASE_URL = `http://localhost:${PORT}`;
 export default defineConfig({
 	testDir: './tests/e2e',
 	fullyParallel: true,
+	// Тесты меняют один общий активный прогон симулятора — файлы не должны идти параллельно
+	workers: 1,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
 	reporter: 'list',

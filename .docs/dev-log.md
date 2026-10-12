@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-10-12 (Phase 2, таск 6)
+
+**Сделано:** Phase 2, таск 6 «Страница `/journal`» ✅.
+
+- `lib/validations/journal.ts`: `journalFiltersSchema` (невалидные параметры URL откатываются к «без фильтра» / странице 1 через `.catch`), `buildJournalHref`, `parseDecisionMetrics` (JSON `metrics` разбирается Zod, битая запись даёт `null`).
+- `lib/agent/journal-queries.ts`: `getJournalPage` (активный прогон, новые сверху, `JOURNAL_PAGE_SIZE = 50`, номер страницы прижимается к последней) и `listJournalCampaigns`. `lib/agent/action-labels.ts` — подписи действий для таблицы и фильтров.
+- `app/(app)/journal/` (`page.tsx` с `requireAdmin()`, `loading.tsx`, `error.tsx`) и `components/features/journal/`: `JournalTable` (метрики в `<details>`), `JournalFilters` (shadcn `select`, Client Component, `router.replace`), `JournalPagination`. Пункт «Журнал» в `AdminNav`. Добавлены shadcn `select`, `badge`.
+- `playwright.config.ts`: `workers: 1` — тесты разных файлов сбрасывают один общий прогон симулятора и при параллельном запуске мешали друг другу.
+- `type-check`/`lint`/`test` (279)/`build`/`test:e2e` (16) зелёные.
+
+**Дальше:** Phase 2, таск 7 «Подбор порогов, сквозной сценарий, e2e фазы» (`scenario.test.ts`, `journal.spec.ts` на 25 тиков, пороги в `agent-config.ts` и seed).
+
+**Заметки:**
+
+- Журнал показывает только активный прогон; после сброса записи архивных прогонов в интерфейсе не видны (в БД остаются).
+- Файл e2e назван `journal-page.spec.ts`, чтобы `journal.spec.ts` остался за сценарием фазы в таске 7.
+
+---
+
 ## 2026-10-12 (Phase 2, таск 5)
 
 **Сделано:** Phase 2, таск 5 «Worker-контейнер + "один тик" через агента» ✅.
