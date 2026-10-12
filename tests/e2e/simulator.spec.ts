@@ -2,6 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? '';
+const MOCK_API_TOKEN = process.env.MOCK_API_TOKEN ?? '';
+const WRONG_TOKEN = 'definitely-wrong-token';
+const MOCK_API_URL = '/api/mock/direct/json/v5';
+const HIDDEN_FIELDS = ['ctr', 'cr', 'bidSensitivity', 'baseImpressions', 'referenceBid', 'degradeFromTick', 'degradedCr'];
 const SEED = '42';
 const TICKS = 3;
 const CAMPAIGNS_COUNT = 4;
@@ -67,5 +71,69 @@ test.describe('симулятор', () => {
 		await page.getByRole('button', { name: 'Сбросить' }).click();
 
 		await expect(page.getByText(/Seed — целое число/)).toBeVisible();
+	});
+});
+
+test.describe('навигация в шапке', () => {
+	test('ссылка «Симулятор» ведёт на /simulator', async ({ page }) => {
+		await login(page);
+
+		await page.getByRole('link', { name: 'Симулятор' }).click();
+
+		await expect(page).toHaveURL(/\/simulator/);
+		await expect(page.getByRole('link', { name: 'Симулятор' })).toHaveAttribute('aria-current', 'page');
+	});
+});
+
+test.describe('API мока Директа', () => {
+	test.beforeAll(() => {
+		if (!ADMIN_EMAIL || !ADMIN_PASSWORD || !MOCK_API_TOKEN) {
+			throw new Error('ADMIN_EMAIL, ADMIN_PASSWORD и MOCK_API_TOKEN должны быть заданы в .env');
+		}
+	});
+
+	test('без токена и с неверным токеном — 401', async ({ request }) => {
+		const body = { method: 'get', params: {} };
+
+		const withoutToken = await request.post(`${MOCK_API_URL}/campaigns`, { data: body });
+		expect(withoutToken.status()).toBe(401);
+
+		const wrongToken = await request.post(`${MOCK_API_URL}/campaigns`, {
+			data: body,
+			headers: { Authorization: `Bearer ${WRONG_TOKEN}` },
+		});
+		expect(wrongToken.status()).toBe(401);
+	});
+
+	test('с токеном отдаёт кампании и статистику без скрытых параметров', async ({ page, request }) => {
+		await login(page);
+		await page.goto('/simulator');
+		await resetWithSeed(page, SEED);
+		await runTicks(page, TICKS);
+
+		const headers = { Authorization: `Bearer ${MOCK_API_TOKEN}` };
+
+		const campaigns = await request.post(`${MOCK_API_URL}/campaigns`, {
+			headers,
+			data: { method: 'get', params: {} },
+		});
+		expect(campaigns.status()).toBe(200);
+		const campaignsText = await campaigns.text();
+		expect(JSON.parse(campaignsText).result.Campaigns).toHaveLength(CAMPAIGNS_COUNT);
+
+		const report = await request.post(`${MOCK_API_URL}/reports`, {
+			headers,
+			data: { method: 'get', params: {} },
+		});
+		expect(report.status()).toBe(200);
+		const reportText = await report.text();
+		const { result } = JSON.parse(reportText);
+		expect(result.CurrentTick).toBe(TICKS);
+		expect(result.Rows.length).toBeGreaterThan(0);
+
+		for (const field of HIDDEN_FIELDS) {
+			expect(campaignsText).not.toContain(`"${field}"`);
+			expect(reportText).not.toContain(`"${field}"`);
+		}
 	});
 });

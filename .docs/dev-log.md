@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-10-12 (Phase 1, таск 6 — фаза закрыта)
+
+**Сделано:** Phase 1, таск 6 «Seed прогона, навигация, e2e фазы» ✅, **Phase 1 «Мок и метрики» завершена**. `prisma/seed.ts` после админа создаёт активный прогон (seed 42, 4 пресета) через `createRun`, если `ACTIVE`-прогона нет; повторный запуск ничего не добавляет. `components/layouts/AdminNav.tsx` (Client, `usePathname`, `aria-current`) + тест, подключён в `app/(app)/layout.tsx`. В `tests/e2e/simulator.spec.ts`: переход по ссылке из шапки, API без/с неверным токеном → 401, с токеном — 4 кампании и `reports.get` без скрытых полей. `.docs/database.md` — раздел про seed. `type-check`/`lint`/`test` (121)/`build`/`test:e2e` (10, включая Phase 0) зелёные. Вручную: seed дважды — прогон один; после архивации прогона seed создаёт новый (seed 42, 4 кампании, тик 0).
+
+**Дальше:** Phase 2 «Агент на правилах и журнал» — спланировать (`phase-2.md`): worker-контейнер, `AdsProvider` + `MockProvider`, движок `rules`, guardrails, журнал решений, `/journal`.
+
+**Заметки:**
+
+- `docker-compose.yml` не менялся: у `web` уже `env_file: .env`, `MOCK_API_TOKEN` попадает туда сам; `migrate` уже запускает `prisma db seed`.
+- В e2e API-тесты читающие (`campaigns.get`, `reports.get`); мутирующие методы (`add`, `bids.set`) не включены, чтобы не плодить кампании в общем прогоне.
+- Не проверено: шапка на 375px и консоль браузера без ошибок (пункты DoD руками); 409 и нулевой расход приостановленной кампании на следующем тике (долги таска 5) — см. DoD таска 5.
+- API-тесты e2e берут `MOCK_API_TOKEN` из `.env`; без него `beforeAll` падает с понятной ошибкой.
+- `TASK.md`, `.docs/phases/` и `.docs/database.md` в `.gitignore`, в коммит не попадают.
+
+---
+
 ## 2026-10-12 (Phase 1, таск 5)
 
 **Сделано:** Phase 1, таск 5 «Эндпоинты мока Директа» ✅. Route Handlers `app/api/mock/direct/json/v5/{campaigns,bids,reports}/route.ts` (`POST { method, params }`: `add`/`get`/`update`/`suspend`/`resume`, `bids.set`, `reports.get`); `lib/mock/auth.ts` (Bearer `MOCK_API_TOKEN`, сравнение хешей через `timingSafeEqual`, пустой токен → 401), `dto.ts` (копейки → микроединицы, ответы только из явных полей, формат ошибки Директа), `service.ts` (Prisma, `MockApiError` 400/404/409), `handler.ts` (общий каркас: токен → JSON → Zod → выполнение → `revalidatePath('/simulator')`); `lib/validations/mock.ts` (суммы в микроединицах, кратные 10 000). `MOCK_API_TOKEN` в `.env.example` и PRD, там же таблица запросов/ответов. Тесты: `mock.test.ts`, `auth.test.ts`, `dto.test.ts` (в т.ч. «скрытых полей в ответе нет»). `type-check`/`lint`/`test` (119)/`build` зелёные. Вручную через curl: 401 (нет/неверный токен), 400, 404, цепочка add → bids.set → update → suspend → get → resume, `reports.get` без скрытых полей.
