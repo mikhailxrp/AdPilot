@@ -37,6 +37,7 @@ model SimulationRun {
   currentTick Int        @default(0) @map("current_tick")
   status      RunStatus  @default(ACTIVE)
   campaigns   Campaign[]
+  decisions   Decision[]
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")
 
@@ -54,6 +55,7 @@ model Campaign {
   targetCpo   Int            @map("target_cpo")
   truth       CampaignTruth?
   tickStats   TickStats[]
+  decisions   Decision[]
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
 
@@ -90,4 +92,73 @@ model TickStats {
 
   @@unique([campaignId, tick])
   @@map("tick_stats")
+}
+
+enum AgentEngine {
+  RULES
+  LLM
+
+  @@map("agent_engine")
+}
+
+enum DecisionAction {
+  WAIT_DATA
+  HOLD
+  LOWER_BID
+  RAISE_BID
+  RAISE_BUDGET
+  PAUSE
+
+  @@map("decision_action")
+}
+
+enum DecisionVerdict {
+  ACCEPTED
+  REJECTED
+
+  @@map("decision_verdict")
+}
+
+// Дефолты порогов — в lib/validations/agent-config.ts (единственный источник)
+model AgentConfig {
+  id              String      @id
+  engine          AgentEngine
+  dryRun          Boolean     @map("dry_run")
+  timerEnabled    Boolean     @map("timer_enabled")
+  tickIntervalSec Int         @map("tick_interval_sec")
+  minClicks       Int         @map("min_clicks")
+  maxStepPct      Int         @map("max_step_pct")
+  maxDailyBudget  Int         @map("max_daily_budget")
+  cooldownTicks   Int         @map("cooldown_ticks")
+  cpoTolerancePct Int         @map("cpo_tolerance_pct")
+  windowTicks     Int         @map("window_ticks")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  @@map("agent_configs")
+}
+
+model Decision {
+  id           String          @id @default(cuid())
+  runId        String          @map("run_id")
+  run          SimulationRun   @relation(fields: [runId], references: [id], onDelete: Restrict)
+  campaignId   String          @map("campaign_id")
+  campaign     Campaign        @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  tick         Int
+  engine       AgentEngine
+  action       DecisionAction
+  before       Int?
+  after        Int?
+  reason       String
+  metrics      Json
+  dryRun       Boolean         @map("dry_run")
+  verdict      DecisionVerdict
+  rejectReason String?         @map("reject_reason")
+  rawResponse  String?         @map("raw_response")
+  applyError   String?         @map("apply_error")
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  @@index([runId, tick])
+  @@index([campaignId])
+  @@map("decisions")
 }

@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-10-12 (Phase 2, таск 1)
+
+**Сделано:** Phase 2, таск 1 «Схема агента: `AgentConfig` и `Decision`» ✅. Миграция `20261012155128_agent`: enum-ы `agent_engine`, `decision_action`, `decision_verdict`, таблицы `agent_configs` (одна строка, `id = "default"`) и `decisions` (индексы `(run_id, tick)`, `campaign_id`; связи с кампанией и прогоном — `onDelete: Restrict`). `lib/validations/agent-config.ts` — `agentConfigSchema` (единственный источник дефолтов), `AGENT_CONFIG_BOUNDS`, `AGENT_CONFIG_ID`, `AGENT_ENGINES` + тест. `prisma/seed.ts` — `ensureAgentConfig()` (`upsert`, `update: {}`). `.docs/database.md` — раздел «Агент (Phase 2)». `type-check`/`lint`/`test` (147)/`build` зелёные; e2e не запускался — UI нет. Вручную: seed дважды — в `agent_configs` одна строка с дефолтами; изменённый `min_clicks` повторный seed не затёр.
+
+**Дальше:** Phase 2, таск 2 «`AdsProvider` + `MockProvider`» (`lib/ads/types.ts`, `lib/ads/mock-provider.ts` по HTTP с `MOCK_API_URL` + `MOCK_API_TOKEN`, микроединицы ↔ копейки, типизированные ошибки 401/404/409).
+
+**Заметки:**
+
+- Сверх списка фазы добавлено поле `windowTicks` (окно агрегации, дефолт 6): нужно таску 3, а БД в фазе меняется только в таске 1.
+- В Prisma у порогов, `engine`, `dryRun`, `timerEnabled` нет `@default` — значения берутся из `agentConfigSchema.parse({})`. Конфиг создаёт только seed; без него строки нет (учесть в таске 4/5: понятная ошибка, если конфига нет).
+- `before` / `after` — копейки; поле задаётся действием (`*_BID` → ставка, `RAISE_BUDGET` → бюджет, остальные → `null`). У `REJECTED` в `after` — предложение движка.
+- `rawResponse` — `String?`, а не `Json`: сырой ответ LLM может быть невалидным JSON.
+- Zod-enum движка — свой список `['RULES', 'LLM']` без импорта из `generated/prisma` (схему подключит клиентская форма `/settings`); расхождение с Prisma поймает type-check в seed.
+- Стартовые пороги временные, подбираются в таске 7.
+- После миграции — перезапустить `next dev` (singleton Prisma держит старый клиент).
+
+---
+
 ## 2026-10-12 (Phase 1, таск 6 — фаза закрыта)
 
 **Сделано:** Phase 1, таск 6 «Seed прогона, навигация, e2e фазы» ✅, **Phase 1 «Мок и метрики» завершена**. `prisma/seed.ts` после админа создаёт активный прогон (seed 42, 4 пресета) через `createRun`, если `ACTIVE`-прогона нет; повторный запуск ничего не добавляет. `components/layouts/AdminNav.tsx` (Client, `usePathname`, `aria-current`) + тест, подключён в `app/(app)/layout.tsx`. В `tests/e2e/simulator.spec.ts`: переход по ссылке из шапки, API без/с неверным токеном → 401, с токеном — 4 кампании и `reports.get` без скрытых полей. `.docs/database.md` — раздел про seed. `type-check`/`lint`/`test` (121)/`build`/`test:e2e` (10, включая Phase 0) зелёные. Вручную: seed дважды — прогон один; после архивации прогона seed создаёт новый (seed 42, 4 кампании, тик 0).

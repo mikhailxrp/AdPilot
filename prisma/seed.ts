@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { RunStatus } from '@/generated/prisma/client';
 import { createRun } from '@/lib/simulator/service';
+import { AGENT_CONFIG_ID, agentConfigSchema } from '@/lib/validations/agent-config';
 import { loginSchema } from '@/lib/validations/auth';
 
 const BCRYPT_ROUNDS = 12;
@@ -17,6 +18,16 @@ async function ensureActiveRun(): Promise<void> {
 
 	await createRun(DEFAULT_RUN_SEED);
 	console.log(`Прогон симулятора создан (seed ${DEFAULT_RUN_SEED})`);
+}
+
+/** Существующий конфиг не трогаем: пороги мог поменять админ. */
+async function ensureAgentConfig(): Promise<void> {
+	await db.agentConfig.upsert({
+		where: { id: AGENT_CONFIG_ID },
+		update: {},
+		create: { id: AGENT_CONFIG_ID, ...agentConfigSchema.parse({}) },
+	});
+	console.log('Конфиг агента на месте');
 }
 
 async function main(): Promise<void> {
@@ -40,6 +51,7 @@ async function main(): Promise<void> {
 	console.log(`Админ ${email} создан/обновлён`);
 
 	await ensureActiveRun();
+	await ensureAgentConfig();
 }
 
 main()
