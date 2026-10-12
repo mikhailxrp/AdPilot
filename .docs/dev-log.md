@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-10-12 (Phase 1, таск 1)
+
+**Сделано:** спланирована Phase 1 «Мок и метрики» (`phase-1.md`, 6 тасков; в `_status.md` фаза 🔄). Phase 1, таск 1 «Схема симулятора + сверка с API Директа» ✅. В `prisma/schema.prisma` — enum-ы `RunStatus`, `CampaignState`, модели `SimulationRun`, `Campaign`, `CampaignTruth` (1:1), `TickStats` с уникальным `(campaignId, tick)` и каскадным удалением; миграция `20261012101104_simulator`. `.docs/database.md` и раздел «Мок Директа» в `.docs/prd.md` обновлены (таблица соответствия мока и Директа v5, отличия мока, допущение снято). В живой БД проверены уникальный индекс и каскад (в транзакции с откатом). `type-check`/`lint`/`test`/`build` и `test:e2e` (4 теста) зелёные.
+
+**Дальше:** Phase 1, таск 2 «Расчёт метрик» (`lib/metrics/metrics.ts` + тесты, `lib/metrics/format.ts`; деление на ноль → `null`, «нет данных»).
+
+**Заметки:**
+
+- Решения фазы: доступ к API мока — Bearer `MOCK_API_TOKEN`; 1 тик = 1 час, 24 тика = сутки; сброс архивирует прогон (`ARCHIVED`), а не удаляет; деньги — `Int` копейки; генератор инициализируется от (seed, тик, кампания).
+- Директ v5 (сверено через Context7): `POST /json/v5/{service}` с `{ method, params }`, деньги в микроединицах (× 1 000 000). Копейки → микро = × 10 000, перевод в DTO мока (таск 5).
+- Отличия мока: отчёты синхронные JSON (в Директе асинхронный TSV), `Id` — строка cuid, состояния только `ON`/`SUSPENDED`.
+- «Только один `ACTIVE`-прогон» в БД не закреплён индексом — обеспечит сервис в транзакции (таск 4).
+- `@map` на значениях enum в Prisma 7 меняет их рантайм-значения — не используем, только `@@map` на имени enum.
+- `TASK.md`, `.docs/prd.md`, `.docs/database.md` в `.gitignore` — правки документации в Git не попадают.
+
+---
+
 ## 2026-10-12 (таск 5, конец Phase 0)
 
 **Сделано:** Phase 0, таск 5 «Docker Compose (web + db) + e2e» ✅ — **Phase 0 «Фундамент» завершена**. `Dockerfile` (multi-stage: deps → builder → runner, `output: 'standalone'`, пользователь не root), `.dockerignore`, в `docker-compose.yml` сервисы `migrate` (одноразовый: `prisma migrate deploy` + seed из стадии `builder`) и `web` (стартует после успешного `migrate`), `AUTH_TRUST_HOST` и `AUTH_URL` в Compose и `.env.example`, раздел «Запуск» в README, `tests/e2e/auth.spec.ts` (гость → `/login`, неверный пароль, вход, выход). Проверено на чистом томе: `docker compose up --build` поднимает всё без ручных шагов, повторный запуск не дублирует админа, в образе нет `.env`. `type-check`/`lint`/`test`/`build` и `test:e2e` (4 теста) зелёные.

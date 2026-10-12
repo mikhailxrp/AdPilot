@@ -16,3 +16,78 @@ model User {
 
   @@map("users")
 }
+
+enum RunStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("run_status")
+}
+
+enum CampaignState {
+  ON
+  SUSPENDED
+
+  @@map("campaign_state")
+}
+
+model SimulationRun {
+  id          String     @id @default(cuid())
+  seed        Int
+  currentTick Int        @default(0) @map("current_tick")
+  status      RunStatus  @default(ACTIVE)
+  campaigns   Campaign[]
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@map("simulation_runs")
+}
+
+model Campaign {
+  id          String         @id @default(cuid())
+  runId       String         @map("run_id")
+  run         SimulationRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  name        String
+  state       CampaignState  @default(ON)
+  bid         Int
+  dailyBudget Int            @map("daily_budget")
+  targetCpo   Int            @map("target_cpo")
+  truth       CampaignTruth?
+  tickStats   TickStats[]
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@index([runId])
+  @@map("campaigns")
+}
+
+model CampaignTruth {
+  id              String   @id @default(cuid())
+  campaignId      String   @unique @map("campaign_id")
+  campaign        Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ctr             Float
+  cr              Float
+  bidSensitivity  Float    @map("bid_sensitivity")
+  baseImpressions Int      @map("base_impressions")
+  referenceBid    Int      @map("reference_bid")
+  degradeFromTick Int?     @map("degrade_from_tick")
+  degradedCr      Float?   @map("degraded_cr")
+
+  @@map("campaign_truths")
+}
+
+model TickStats {
+  id          String   @id @default(cuid())
+  campaignId  String   @map("campaign_id")
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  tick        Int
+  impressions Int
+  clicks      Int
+  orders      Int
+  cost        Int
+  bid         Int
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([campaignId, tick])
+  @@map("tick_stats")
+}
