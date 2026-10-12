@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-10-12 (Phase 1, таск 3)
+
+**Сделано:** Phase 1, таск 3 «Ядро симулятора (чистые функции)» ✅. `lib/simulator/rng.ts` — `createRng` (mulberry32), `hashSeed` (FNV-1a), `deriveTickSeed(runSeed, tick, campaignKey)`; `lib/simulator/model.ts` — `simulateTick` (пауза/нет денег → показы с шумом ±10 % → клики → обрезка бюджетом → заказы → расход), `expectedImpressions`, `effectiveCr`, `dayStartTick`, `TICKS_PER_DAY = 24`; `lib/simulator/presets.ts` — 4 кампании `good`/`bad`/`new`/`moody` (капризная портится с тика 15). Тесты: `rng.test.ts`, `model.test.ts`, `presets.test.ts`. `type-check`/`lint`/`test` (55 тестов)/`build` зелёные; e2e не запускался — UI нет.
+
+**Дальше:** Phase 1, таск 4 «Сервис симулятора + страница `/simulator`» (`lib/simulator/service.ts`, `lib/validations/simulator.ts`, `actions/simulator.ts`, страница с таблицей и `SimulatorControls`).
+
+**Заметки:**
+
+- Seed тика выводится из ключа пресета (`campaignKey`), а не из `cuid`: после сброса id новые, цифры при том же seed должны совпасть. В схеме БД поля с ключом нет — сервис таска 4 сопоставляет кампанию с пресетом по `name`.
+- Тики нумеруются с 1 (`currentTick = 0` — ничего не было). `spentToday` сервис считает суммой `cost` из `TickStats` с `dayStartTick(tick)` по `tick - 1`.
+- Модель сама обрабатывает `SUSPENDED`, `bid ≤ 0` и остаток бюджета меньше ставки (тик из нулей) — в сервисе отдельной ветки не нужно.
+- Клик стоит ровно `bid` (аукционной скидки нет). При обрезке бюджетом показы уменьшаются пропорционально кликам.
+- «Ставка выше → показов не меньше» гарантировано только при запасе бюджета: шум — первое число генератора, но бюджет может срезать показы.
+- Тест «капризной»: до порога всего 14 тиков, поэтому сравниваются тики 14 и 15 на 200 seed, а не 200 тиков до/после.
+
+---
+
 ## 2026-10-12 (Phase 1, таск 2)
 
 **Сделано:** Phase 1, таск 2 «Расчёт метрик» ✅. `lib/metrics/metrics.ts` — `cpc`, `cpm`, `ctr`, `cr`, `cpo`, `computeMetrics` (копейки и доли, без округления, деление на ноль → `null`); `lib/metrics/format.ts` — `formatRub`, `formatPercent`, `NO_DATA` («нет данных») через `Intl.NumberFormat('ru-RU')`. Тесты: `metrics.test.ts` (ручной пример, нулевые показы/клики/заказы, всё по нулям, дробный CPC), `format.test.ts` (`null`, копейки → рубли, доля → проценты, `0` ≠ «нет данных»). `type-check`/`lint`/`test` (24 теста)/`build` зелёные; e2e не запускался — UI нет.
