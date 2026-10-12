@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-10-12 (Phase 1, таск 4)
+
+**Сделано:** Phase 1, таск 4 «Сервис симулятора + страница `/simulator`» ✅. `lib/simulator/service.ts` — `createRun`, `resetRun` (старый `ACTIVE` → `ARCHIVED`, Serializable), `runTick` (тик занимается через `updateMany where currentTick`, `spentToday` из `TickStats`); `lib/simulator/stats.ts` (`sumTickStats`, `spentToday`) и `queries.ts` (`getActiveRunView` без `CampaignTruth`); `lib/validations/simulator.ts` (`resetSchema`, `SEED_MAX`); `actions/simulator.ts` (`tickAction`, `resetAction`, `requireAdmin()` в каждом); страница `/simulator` с `loading.tsx`/`error.tsx`, `SimulatorView`, `CampaignsTable`, `SimulatorControls`; shadcn `table`. Тесты: `simulator.test.ts`, `stats.test.ts`, `tests/e2e/simulator.spec.ts` (гость, сброс + 3 тика + воспроизводимость, невалидный seed). `type-check`/`lint`/`test` (72)/`build`/`test:e2e` (7) зелёные.
+
+**Дальше:** Phase 1, таск 5 «Эндпоинты мока Директа» (`app/api/mock/direct/…`, `lib/mock/auth.ts`, `dto.ts`, `lib/validations/mock.ts`, `MOCK_API_TOKEN`).
+
+**Заметки:**
+
+- После новой миграции нужен `npx prisma generate` **и перезапуск `next dev`**: singleton Prisma в `globalThis` держит старый клиент, и на странице падает `Cannot read properties of undefined (reading 'findFirst')`.
+- `resetSchema` принимает `string | number` (форма вводит строку); `z.coerce` не использован: пустая строка превращалась бы в 0.
+- Страница без собственного `Suspense`: границей служит `loading.tsx`; `next build` проходит.
+- В e2e таблицы сравниваются через `textContent` (не `innerText` — `toHaveText` сравнивает `textContent`). Тесты симулятора `serial`: меняют общий активный прогон.
+- Ссылки на `/simulator` в шапке пока нет — таск 6.
+
+---
+
 ## 2026-10-12 (Phase 1, таск 3)
 
 **Сделано:** Phase 1, таск 3 «Ядро симулятора (чистые функции)» ✅. `lib/simulator/rng.ts` — `createRng` (mulberry32), `hashSeed` (FNV-1a), `deriveTickSeed(runSeed, tick, campaignKey)`; `lib/simulator/model.ts` — `simulateTick` (пауза/нет денег → показы с шумом ±10 % → клики → обрезка бюджетом → заказы → расход), `expectedImpressions`, `effectiveCr`, `dayStartTick`, `TICKS_PER_DAY = 24`; `lib/simulator/presets.ts` — 4 кампании `good`/`bad`/`new`/`moody` (капризная портится с тика 15). Тесты: `rng.test.ts`, `model.test.ts`, `presets.test.ts`. `type-check`/`lint`/`test` (55 тестов)/`build` зелёные; e2e не запускался — UI нет.
