@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-10-12 (Phase 1, таск 5)
+
+**Сделано:** Phase 1, таск 5 «Эндпоинты мока Директа» ✅. Route Handlers `app/api/mock/direct/json/v5/{campaigns,bids,reports}/route.ts` (`POST { method, params }`: `add`/`get`/`update`/`suspend`/`resume`, `bids.set`, `reports.get`); `lib/mock/auth.ts` (Bearer `MOCK_API_TOKEN`, сравнение хешей через `timingSafeEqual`, пустой токен → 401), `dto.ts` (копейки → микроединицы, ответы только из явных полей, формат ошибки Директа), `service.ts` (Prisma, `MockApiError` 400/404/409), `handler.ts` (общий каркас: токен → JSON → Zod → выполнение → `revalidatePath('/simulator')`); `lib/validations/mock.ts` (суммы в микроединицах, кратные 10 000). `MOCK_API_TOKEN` в `.env.example` и PRD, там же таблица запросов/ответов. Тесты: `mock.test.ts`, `auth.test.ts`, `dto.test.ts` (в т.ч. «скрытых полей в ответе нет»). `type-check`/`lint`/`test` (119)/`build` зелёные. Вручную через curl: 401 (нет/неверный токен), 400, 404, цепочка add → bids.set → update → suspend → get → resume, `reports.get` без скрытых полей.
+
+**Дальше:** Phase 1, таск 6 «Seed прогона, навигация, e2e фазы» (`prisma/seed.ts`, ссылка на `/simulator` в шапке, `MOCK_API_TOKEN` в `docker-compose.yml`, e2e фазы с проверкой API: 401 без токена, статистика с токеном).
+
+**Заметки:**
+
+- Не проверено вживую: 409 (нет активного прогона), нулевой расход приостановленной кампании на следующем тике (покрыто тестами модели таска 4), видимость изменений на `/simulator`, пункты `dod-global.md`. Эти галочки в DoD таска оставлены пустыми.
+- Проверка «дубликат названия → 400» в `service.ts` вживую не подтверждена: curl на Windows исказил кириллицу в теле. Повторять через `--data-binary @file.json` (UTF-8).
+- В dev-прогон при проверке попали 2 тестовые кампании с искажёнными именами (в т.ч. «Тест API»); уйдут в архив при сбросе на `/simulator`.
+- Новая кампания через `campaigns.add` получает скрытые параметры пресета «новая»; клиент их задать не может. Названия кампаний в прогоне уникальны (иначе совпал бы поток случайных чисел).
+- В коде Директа `error_code` числовой; в моке он равен HTTP-статусу.
+- Ответы мока (`Id`, `Name`…) — PascalCase, как в Директе; в БД и коде — camelCase, конвертация только в `dto.ts` и схемах.
+
+---
+
 ## 2026-10-12 (Phase 1, таск 4)
 
 **Сделано:** Phase 1, таск 4 «Сервис симулятора + страница `/simulator`» ✅. `lib/simulator/service.ts` — `createRun`, `resetRun` (старый `ACTIVE` → `ARCHIVED`, Serializable), `runTick` (тик занимается через `updateMany where currentTick`, `spentToday` из `TickStats`); `lib/simulator/stats.ts` (`sumTickStats`, `spentToday`) и `queries.ts` (`getActiveRunView` без `CampaignTruth`); `lib/validations/simulator.ts` (`resetSchema`, `SEED_MAX`); `actions/simulator.ts` (`tickAction`, `resetAction`, `requireAdmin()` в каждом); страница `/simulator` с `loading.tsx`/`error.tsx`, `SimulatorView`, `CampaignsTable`, `SimulatorControls`; shadcn `table`. Тесты: `simulator.test.ts`, `stats.test.ts`, `tests/e2e/simulator.spec.ts` (гость, сброс + 3 тика + воспроизводимость, невалидный seed). `type-check`/`lint`/`test` (72)/`build`/`test:e2e` (7) зелёные.
