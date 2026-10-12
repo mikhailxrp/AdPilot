@@ -21,5 +21,8 @@ export default defineConfig({
 		command: 'npm run dev',
 		url: BASE_URL,
 		reuseExistingServer: !process.env.CI,
+		// Движок llm в e2e — fake-модель: без сети и расходов, детерминированно. Уже запущенный сервер
+		// (reuseExistingServer) этот env не получает — tests/e2e/llm.spec.ts это проверяет.
+		env: { LLM_CLIENT: 'fake' },
 	},
 });

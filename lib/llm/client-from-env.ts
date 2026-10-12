@@ -5,10 +5,12 @@ import { FakeLLMClient } from '@/lib/llm/fake-client';
 import type { LLMClient } from '@/lib/llm/types';
 import { YandexLLMClient } from '@/lib/llm/yandex-client';
 
-/** Ответ `fake` из env: всегда «держим». Ответ по решению `rules` — таски 3 и 7. */
+/** Ответ `fake`-клиента из env: всегда «держим». В цикле агента fake отвечает решением `rules` — `createFakeLlmEngine`. */
 export const FAKE_HOLD_ANSWER = JSON.stringify({ action: 'HOLD', value: null, reason: 'fake: держим' });
 
 const clientKindSchema = z.enum(['yandex', 'fake'], 'LLM_CLIENT должен быть yandex или fake').default('yandex');
+
+export type LLMClientKind = z.infer<typeof clientKindSchema>;
 
 const yandexEnvSchema = z.object({
 	YANDEX_API_KEY: z.string('Не задан YANDEX_API_KEY').min(1, 'Не задан YANDEX_API_KEY'),
@@ -28,10 +30,15 @@ function fail(error: z.ZodError): never {
 	throw new Error(`Конфигурация LLMClient: ${error.issues.map(({ message }) => message).join('; ')}`);
 }
 
-export function createLLMClientFromEnv(env: Record<string, string | undefined> = process.env): LLMClient {
+/** Какой клиент выбран в `LLM_CLIENT`: пусто → `yandex`, неизвестное значение → ошибка. */
+export function llmClientKindFromEnv(env: Record<string, string | undefined> = process.env): LLMClientKind {
 	const kind = clientKindSchema.safeParse(env.LLM_CLIENT || undefined);
 	if (!kind.success) fail(kind.error);
-	if (kind.data === 'fake') return new FakeLLMClient(() => FAKE_HOLD_ANSWER);
+	return kind.data;
+}
+
+export function createLLMClientFromEnv(env: Record<string, string | undefined> = process.env): LLMClient {
+	if (llmClientKindFromEnv(env) === 'fake') return new FakeLLMClient(() => FAKE_HOLD_ANSWER);
 
 	const parsed = yandexEnvSchema.safeParse(env);
 	if (!parsed.success) fail(parsed.error);

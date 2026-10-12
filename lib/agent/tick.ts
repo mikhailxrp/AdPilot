@@ -4,18 +4,24 @@ import { createMockProviderFromEnv } from '@/lib/ads/mock-provider';
 import { getAgentConfig } from '@/lib/agent/config';
 import { runAgentCycle } from '@/lib/agent/cycle';
 import { createLlmEngine } from '@/lib/agent/engines/llm';
+import { createFakeLlmEngine } from '@/lib/agent/engines/llm-fake';
 import { rulesEngine } from '@/lib/agent/engines/rules';
 import { prismaJournal } from '@/lib/agent/journal';
 import { withTickLock } from '@/lib/agent/tick-lock';
 import { runTickWith, type TickOutcome } from '@/lib/agent/tick-core';
 import type { AgentEngine, AgentEngineName } from '@/lib/agent/types';
 import { db } from '@/lib/db';
-import { createLLMClientFromEnv } from '@/lib/llm/client-from-env';
+import { createLLMClientFromEnv, llmClientKindFromEnv } from '@/lib/llm/client-from-env';
 import { RunStatus } from '@/generated/prisma/client';
 import { runTick } from '@/lib/simulator/service';
 
+/** `LLM_CLIENT=fake` (e2e): «модель» отвечает решением `rules` — детерминированно и без сети. */
+function createLlm(): AgentEngine {
+	return llmClientKindFromEnv() === 'fake' ? createFakeLlmEngine() : createLlmEngine(createLLMClientFromEnv());
+}
+
 function createEngine(name: AgentEngineName): AgentEngine {
-	return name === 'LLM' ? createLlmEngine(createLLMClientFromEnv()) : rulesEngine;
+	return name === 'LLM' ? createLlm() : rulesEngine;
 }
 
 /** При `LLM` на том же снимке спрашиваем `rules` — для сравнения в журнале. При `RULES` модель не вызывается. */

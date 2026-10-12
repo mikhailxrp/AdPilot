@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { createLLMClientFromEnv, defaultModelUri, FAKE_HOLD_ANSWER } from '@/lib/llm/client-from-env';
+import { createLLMClientFromEnv, defaultModelUri, FAKE_HOLD_ANSWER, llmClientKindFromEnv } from '@/lib/llm/client-from-env';
 import { FakeLLMClient } from '@/lib/llm/fake-client';
 import { YandexLLMClient } from '@/lib/llm/yandex-client';
 
@@ -19,6 +19,18 @@ async function sentModel(env: Record<string, string | undefined>): Promise<unkno
 		fetchMock.mockRestore();
 	}
 }
+
+describe('llmClientKindFromEnv', () => {
+	it('пусто → yandex, fake → fake', () => {
+		expect(llmClientKindFromEnv({})).toBe('yandex');
+		expect(llmClientKindFromEnv({ LLM_CLIENT: '' })).toBe('yandex');
+		expect(llmClientKindFromEnv({ LLM_CLIENT: 'fake' })).toBe('fake');
+	});
+
+	it('неизвестное значение — ошибка', () => {
+		expect(() => llmClientKindFromEnv({ LLM_CLIENT: 'openai' })).toThrow(/LLM_CLIENT должен быть yandex или fake/);
+	});
+});
 
 describe('createLLMClientFromEnv', () => {
 	it('fake создаётся без ключей и отвечает HOLD', async () => {
