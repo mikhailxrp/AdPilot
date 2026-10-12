@@ -4,6 +4,38 @@
 
 ---
 
+## 2026-10-12 (Phase 2, таски 2–3)
+
+**Сделано:**
+
+- Phase 2, таск 2 «`AdsProvider` + `MockProvider`» ✅.
+  - `lib/ads/types.ts`: интерфейс `AdsProvider` (кампании, отчёт, ставка, бюджет, пауза/возобновление), деньги в копейках, `AdsProviderError` с кодами `unauthorized` / `not_found` / `conflict` / `bad_request` / `unavailable` / `invalid_response`.
+  - `lib/ads/mock-provider.ts`: HTTP-клиент мока (`MOCK_API_URL` + Bearer `MOCK_API_TOKEN`), копейки ↔ микроединицы, таймаут `REQUEST_TIMEOUT_MS`, фабрика `createMockProviderFromEnv()`.
+  - `lib/ads/mock-responses.ts`: Zod-схемы ответов мока.
+  - `MOCK_API_URL` добавлен в `.env.example` и `prd.md`.
+  - Вручную на живом моке: `listCampaigns()` вернул 4 кампании, с неверным токеном — `unauthorized`.
+- Phase 2, таск 3 «Движок `rules` + guardrails» ✅.
+  - `lib/agent/types.ts`: `DECISION_ACTIONS`, `Proposal`, `CampaignSnapshot`, `RulesConfig`.
+  - `lib/agent/window.ts`: `aggregateWindow`, `buildSnapshot` (окно, метрики через `computeMetrics()`, расход за 24 тика).
+  - `lib/agent/engines/rules.ts`: `decideByRules`. Правила по порядку: пауза → мало кликов → нет заказов → CPO выше допуска → бюджет выбран → не трогать; причина с цифрами.
+  - `lib/agent/guardrails.ts`: `checkProposal` (ACCEPTED / REJECTED + `rejectReason`), `beforeValue`.
+- `type-check`/`lint`/`test` (214)/`build` зелёные. E2E не запускался: UI нет.
+
+**Дальше:** Phase 2, таск 4 «Цикл агента и запись в журнал» (`lib/agent/cycle.ts`, `lib/agent/journal.ts`, `lib/ads/memory-provider.ts`): статистика → метрики → решение → guardrails → журнал → применение.
+
+**Заметки:**
+
+- `fetch` передаётся в `MockProvider` через конструктор: глобальный не подменяем. Повторов (retry) нет: упавший запрос повторит следующий тик, ошибка применения уйдёт в `applyError`.
+- `import 'server-only'` в провайдере не ставим: worker работает на чистом Node.
+- Guardrails **отклоняют** значение за лимитом, а не подрезают: в журнале видно, что предлагал движок.
+- `RAISE_BID` в правилах нет (его нет в списке PRD); guardrails его проверяют, он нужен LLM.
+- «Бюджет выбран» — расход за последние 24 тика ≥ `BUDGET_LIMITED_PCT` (90%) бюджета. Округление в безопасную сторону: `ceil` при снижении, `floor` при повышении.
+- Сверх плана: `buildSnapshot` (пригодится циклу в таске 4) и `HOLD`, если ставку снизить или бюджет поднять уже некуда. Без этого guardrails отклоняли бы «пустое» изменение.
+- Для таска 4: `lastChangeTick` (тик последнего применённого изменения кампании) считается из журнала и передаётся в `checkProposal`.
+- Для таска 7: при `windowTicks = 6` «плохая» тратит в окне ~1 080 ₽ при допустимых 1 200 ₽ и до `PAUSE` не дойдёт, пороги нужно подбирать.
+
+---
+
 ## 2026-10-12 (Phase 2, таск 1)
 
 **Сделано:** Phase 2, таск 1 «Схема агента: `AgentConfig` и `Decision`» ✅. Миграция `20261012155128_agent`: enum-ы `agent_engine`, `decision_action`, `decision_verdict`, таблицы `agent_configs` (одна строка, `id = "default"`) и `decisions` (индексы `(run_id, tick)`, `campaign_id`; связи с кампанией и прогоном — `onDelete: Restrict`). `lib/validations/agent-config.ts` — `agentConfigSchema` (единственный источник дефолтов), `AGENT_CONFIG_BOUNDS`, `AGENT_CONFIG_ID`, `AGENT_ENGINES` + тест. `prisma/seed.ts` — `ensureAgentConfig()` (`upsert`, `update: {}`). `.docs/database.md` — раздел «Агент (Phase 2)». `type-check`/`lint`/`test` (147)/`build` зелёные; e2e не запускался — UI нет. Вручную: seed дважды — в `agent_configs` одна строка с дефолтами; изменённый `min_clicks` повторный seed не затёр.
