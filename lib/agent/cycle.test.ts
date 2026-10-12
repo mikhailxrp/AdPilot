@@ -2,10 +2,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MemoryProvider } from '@/lib/ads/memory-provider';
 import { AdsProviderError, type AdsCampaign, type AdsReportRow } from '@/lib/ads/types';
-import { runAgentCycle, type CycleConfig } from '@/lib/agent/cycle';
+import { ENGINE_REJECTION_REASON, runAgentCycle, type CycleConfig } from '@/lib/agent/cycle';
+import { createLlmEngine } from '@/lib/agent/engines/llm';
 import { rulesEngine } from '@/lib/agent/engines/rules';
 import { MemoryJournal } from '@/lib/agent/memory-journal';
 import type { JournalEntry } from '@/lib/agent/types';
+import { FakeLLMClient, type FakeResponder } from '@/lib/llm/fake-client';
+import { LLMClientError } from '@/lib/llm/types';
 
 const RUN_ID = 'run1';
 const TICK = 10;
@@ -63,6 +66,19 @@ function setup(config: Partial<CycleConfig> = {}) {
 	return { provider, journal, run };
 }
 
+/** Только кампания bad (60 кликов за окно, ставка 2 000) и движок llm с заданным ответом модели. */
+function setupLlm(respond: FakeResponder) {
+	const provider = new MemoryProvider({ campaigns: [campaign('bad')], rows: badRows(), currentTick: TICK });
+	const journal = new MemoryJournal();
+	const engine = createLlmEngine(new FakeLLMClient(respond));
+	const run = () => runAgentCycle({ provider, journal, engine, config: CONFIG, runId: RUN_ID });
+	return { provider, journal, run };
+}
+
+function answer(action: string, value: number | null): string {
+	return JSON.stringify({ action, value, reason: 'ответ модели' });
+}
+
 async function campaignOf(provider: MemoryProvider, id: string): Promise<AdsCampaign> {
 	const found = (await provider.listCampaigns()).find((candidate) => candidate.id === id);
 	if (!found) throw new Error(`Нет кампании ${id}`);
@@ -110,6 +126,7 @@ describe('runAgentCycle', () => {
 		expect(first?.reason).not.toBe('');
 		expect(first?.metrics.window.clicks).toBe(60);
 		expect(first?.metrics.windowTicks).toBe(6);
+		expect(journal.entries.every((entry) => entry.rawResponse === null)).toBe(true);
 	});
 
 	it('применяет принятые решения: ставка, бюджет, пауза', async () => {
@@ -203,5 +220,77 @@ describe('runAgentCycle', () => {
 
 		await expect(run()).rejects.toMatchObject({ code: 'unavailable' });
 		expect(journal.entries).toEqual([]);
+	});
+});
+
+describe('runAgentCycle с движком llm', () => {
+	it('валидное решение в лимитах → ACCEPTED, применено, сырой ответ в журнале', async () => {
+		const raw = answer('LOWER_BID', 17);
+		const { provider, journal, run } = setupLlm(() => raw);
+
+		const result = await run();
+
+		expect(journal.entries).toHaveLength(1);
+		expect(journal.entries[0]).toMatchObject({
+			engine: 'LLM',
+			action: 'LOWER_BID',
+			before: 2_000,
+			after: 1_700,
+			reason: 'ответ модели',
+			verdict: 'ACCEPTED',
+			rejectReason: null,
+			rawResponse: raw,
+		});
+		expect(result.decisions[0]).toMatchObject({ applied: true });
+		expect((await campaignOf(provider, 'bad')).bid).toBe(1_700);
+	});
+
+	it('ответ не по схеме → HOLD + REJECTED с причиной и сырым ответом, кампания не меняется', async () => {
+		const raw = answer('RAISE_EVERYTHING', 100);
+		const { provider, journal, run } = setupLlm(() => raw);
+
+		const result = await run();
+
+		expect(journal.entries[0]).toMatchObject({
+			engine: 'LLM',
+			action: 'HOLD',
+			before: null,
+			after: null,
+			reason: ENGINE_REJECTION_REASON,
+			verdict: 'REJECTED',
+			rawResponse: raw,
+		});
+		expect(journal.entries[0]?.rejectReason).toContain('Ответ модели не по схеме');
+		expect(result.decisions[0]).toMatchObject({ applied: false });
+		expect(result.failures).toEqual([]);
+		expect(await campaignOf(provider, 'bad')).toMatchObject({ bid: 2_000, state: 'ON' });
+	});
+
+	it('модель недоступна → HOLD + REJECTED, кампания не меняется, цикл не падает', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		const { provider, journal, run } = setupLlm(() => new LLMClientError('unavailable', 'Модель недоступна'));
+
+		const result = await run();
+
+		expect(journal.entries[0]).toMatchObject({ action: 'HOLD', verdict: 'REJECTED', rawResponse: null });
+		expect(journal.entries[0]?.rejectReason).toContain('Модель недоступна');
+		expect(result.failures).toEqual([]);
+		expect((await campaignOf(provider, 'bad')).bid).toBe(2_000);
+	});
+
+	it('значение за лимитом шага → отклоняют guardrails, в журнале предложение модели', async () => {
+		const { provider, journal, run } = setupLlm(() => answer('LOWER_BID', 10));
+
+		await run();
+
+		expect(journal.entries[0]).toMatchObject({
+			engine: 'LLM',
+			action: 'LOWER_BID',
+			before: 2_000,
+			after: 1_000,
+			verdict: 'REJECTED',
+		});
+		expect(journal.entries[0]?.rejectReason).toContain('больше допустимых 20%');
+		expect((await campaignOf(provider, 'bad')).bid).toBe(2_000);
 	});
 });

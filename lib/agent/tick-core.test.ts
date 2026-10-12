@@ -4,15 +4,18 @@ import type { CycleResult } from '@/lib/agent/cycle';
 import {
 	NO_ACTIVE_RUN_MESSAGE,
 	TickError,
-	UNSUPPORTED_ENGINE_MESSAGE,
+	engineSetupMessage,
 	runTickWith,
 	type TickDeps,
 } from '@/lib/agent/tick-core';
+import type { AgentEngine } from '@/lib/agent/types';
 import { agentConfigSchema, type AgentConfigInput } from '@/lib/validations/agent-config';
 
 const RUN_ID = 'run1';
 const TICK = 7;
 const CYCLE: CycleResult = { tick: TICK, decisions: [], failures: [] };
+const RULES_ENGINE: AgentEngine = { name: 'RULES', decide: vi.fn() };
+const LLM_ENGINE: AgentEngine = { name: 'LLM', decide: vi.fn() };
 
 function makeDeps(overrides: Partial<TickDeps> = {}, config: AgentConfigInput = agentConfigSchema.parse({})) {
 	const calls: string[] = [];
@@ -30,6 +33,10 @@ function makeDeps(overrides: Partial<TickDeps> = {}, config: AgentConfigInput = 
 			calls.push('world');
 			return { tick: TICK };
 		}),
+		createEngine: vi.fn((name) => {
+			calls.push('engine');
+			return name === 'LLM' ? LLM_ENGINE : RULES_ENGINE;
+		}),
 		runCycle: vi.fn(async () => {
 			calls.push('cycle');
 			return CYCLE;
@@ -40,14 +47,19 @@ function makeDeps(overrides: Partial<TickDeps> = {}, config: AgentConfigInput = 
 }
 
 describe('runTickWith', () => {
-	it('порядок: замок → конфиг → тик мира → цикл, в цикл уходят runId и конфиг', async () => {
+	it('порядок: замок → конфиг → движок → тик мира → цикл, в цикл уходят runId, конфиг и движок', async () => {
 		const { deps, calls } = makeDeps();
 
 		const outcome = await runTickWith(deps);
 
 		expect(outcome).toEqual({ status: 'done', tick: TICK, cycle: CYCLE, cycleError: null });
-		expect(calls).toEqual(['lock', 'config', 'world', 'cycle']);
-		expect(deps.runCycle).toHaveBeenCalledWith({ config: agentConfigSchema.parse({}), runId: RUN_ID });
+		expect(calls).toEqual(['lock', 'config', 'engine', 'world', 'cycle']);
+		expect(deps.createEngine).toHaveBeenCalledWith('RULES');
+		expect(deps.runCycle).toHaveBeenCalledWith({
+			config: agentConfigSchema.parse({}),
+			runId: RUN_ID,
+			engine: RULES_ENGINE,
+		});
 	});
 
 	it('замок занят → ни тика мира, ни цикла', async () => {
@@ -81,10 +93,24 @@ describe('runTickWith', () => {
 		expect(deps.runWorldTick).not.toHaveBeenCalled();
 	});
 
-	it('движок LLM → ошибка, время не идёт', async () => {
-		const { deps } = makeDeps({}, agentConfigSchema.parse({ engine: 'LLM' }));
+	it('engine = LLM → в цикл уходит движок LLM', async () => {
+		const config = agentConfigSchema.parse({ engine: 'LLM' });
+		const { deps } = makeDeps({}, config);
 
-		await expect(runTickWith(deps)).rejects.toThrow(new TickError(UNSUPPORTED_ENGINE_MESSAGE));
+		await runTickWith(deps);
+
+		expect(deps.createEngine).toHaveBeenCalledWith('LLM');
+		expect(deps.runCycle).toHaveBeenCalledWith({ config, runId: RUN_ID, engine: LLM_ENGINE });
+	});
+
+	it('движок не настроен → понятная ошибка, время не идёт', async () => {
+		const setupError = new Error('Конфигурация LLMClient: Не задан YANDEX_API_KEY');
+		const createEngine = () => {
+			throw setupError;
+		};
+		const { deps } = makeDeps({ createEngine }, agentConfigSchema.parse({ engine: 'LLM' }));
+
+		await expect(runTickWith(deps)).rejects.toThrow(new TickError(engineSetupMessage('LLM', setupError)));
 		expect(deps.runWorldTick).not.toHaveBeenCalled();
 	});
 

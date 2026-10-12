@@ -3,7 +3,7 @@
 // Решение пишется в журнал до применения: не записалось — кампания не меняется.
 
 import type { AdsCampaign, AdsProvider } from '@/lib/ads/types';
-import { checkProposal } from '@/lib/agent/guardrails';
+import { checkProposal, type GuardrailResult } from '@/lib/agent/guardrails';
 import { buildSnapshot } from '@/lib/agent/window';
 import {
 	CHANGE_ACTIONS,
@@ -13,9 +13,12 @@ import {
 	type DecisionVerdict,
 	type Journal,
 	type JournalEntry,
+	type Proposal,
 	type RulesConfig,
 } from '@/lib/agent/types';
 import type { AgentConfigInput } from '@/lib/validations/agent-config';
+
+export const ENGINE_REJECTION_REASON = 'Модель не дала решения';
 
 export type CycleConfig = RulesConfig & Pick<AgentConfigInput, 'dryRun'>;
 
@@ -77,6 +80,14 @@ async function applyChange(
 	}
 }
 
+/** Движок не дал решения (модель недоступна, ответ не по схеме): «держим» с отказом, кампания не меняется. */
+function engineRejection(rejectReason: string): { proposal: Proposal; check: GuardrailResult } {
+	return {
+		proposal: { action: 'HOLD', after: null, reason: ENGINE_REJECTION_REASON },
+		check: { verdict: 'REJECTED', before: null, after: null, rejectReason },
+	};
+}
+
 export async function runAgentCycle({ provider, journal, engine, config, runId }: CycleParams): Promise<CycleResult> {
 	const [campaigns, report] = await Promise.all([provider.listCampaigns(), provider.getReport()]);
 	const { currentTick } = report;
@@ -91,14 +102,19 @@ export async function runAgentCycle({ provider, journal, engine, config, runId }
 		try {
 			const rows = report.rows.filter((row) => row.campaignId === campaign.id);
 			const snapshot = buildSnapshot(campaign, rows, currentTick, config.windowTicks);
-			const proposal = await engine.decide(snapshot, config);
-			const check = checkProposal(proposal, {
-				campaign,
-				windowClicks: snapshot.window.clicks,
-				currentTick,
-				lastChangeTick: lastChangeTicks.get(campaign.id) ?? null,
-				config,
-			});
+			const decided = await engine.decide(snapshot, config);
+			const { proposal, check } = decided.ok
+				? {
+						proposal: decided.proposal,
+						check: checkProposal(decided.proposal, {
+							campaign,
+							windowClicks: snapshot.window.clicks,
+							currentTick,
+							lastChangeTick: lastChangeTicks.get(campaign.id) ?? null,
+							config,
+						}),
+					}
+				: engineRejection(decided.rejectReason);
 			const metrics: DecisionMetrics = {
 				windowTicks: config.windowTicks,
 				window: snapshot.window,
@@ -118,7 +134,7 @@ export async function runAgentCycle({ provider, journal, engine, config, runId }
 				dryRun: config.dryRun,
 				verdict: check.verdict,
 				rejectReason: check.verdict === 'REJECTED' ? check.rejectReason : null,
-				rawResponse: null,
+				rawResponse: decided.rawResponse,
 			};
 
 			const { id } = await journal.record(entry);

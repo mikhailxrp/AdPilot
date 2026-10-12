@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-10-12 (Phase 3, таск 3)
+
+**Сделано:** Phase 3, таск 3 «Движок `llm` в цикле агента» ✅.
+
+- `lib/agent/types.ts`: `decide` возвращает `EngineDecision` — `{ ok: true, proposal, rawResponse }` или `{ ok: false, rejectReason, rawResponse }`. Отказ движка — значение, а не исключение; `rulesEngine` отдаёт `ok: true`, `rawResponse: null`.
+- `lib/agent/engines/llm.ts`: `createLlmEngine(client)` — `buildLlmPrompt` → `complete` с `LLM_DECISION_JSON_SCHEMA` → `parseLlmDecision`. `LLMClientError` → отказ «Модель недоступна: …» без `rawResponse`; прочие ошибки пробрасываются (баг → `failures` цикла).
+- `lib/agent/cycle.ts`: отказ движка → запись `HOLD` + `REJECTED`, `reason` «Модель не дала решения», конкретная причина в `rejectReason`, сырой ответ в `rawResponse`; guardrails не вызываются, кампания не меняется. Валидное предложение идёт через те же guardrails, что у `rules`.
+- `lib/agent/tick-core.ts` / `tick.ts`: заглушка `UNSUPPORTED_ENGINE_MESSAGE` убрана; `TickDeps.createEngine(name)` вызывается до тика мира — LLM не настроен → `TickError` «Движок LLM не настроен: …», время не идёт.
+- `docker-compose.yml` не менялся: у `web` и `worker` уже `env_file: .env`.
+- Настоящая модель через движок (`yandexgpt/latest`, `json_schema`): «плохая» → `LOWER_BID` 20 → 16 ₽, «в норме» → `HOLD` с `value: null` — nullable в `json_schema` работает, запасной `json_object` не нужен.
+- `type-check`/`lint`/`test` (348)/`build`/`test:e2e` (18) зелёные.
+
+**Дальше:** Phase 3, таск 4 «Переключатель `rules` | `llm` на `/simulator`».
+
+**Заметки:**
+
+- В локальном `.env` `LLM_CLIENT=yandexgpt` — допустимы только `yandex` | `fake`; до исправления тик на LLM падает с «Движок LLM не настроен». Ключ уже переименован в `YANDEX_API_KEY`.
+- Полный тик на LLM через UI не прогонялся (переключателя нет до таска 4) — проверено вызовом движка напрямую и unit-тестами цикла.
+- В проекте нет конфига Prettier: `npx prettier --write` форматирует двойными кавычками и пробелами — не запускать без `--use-tabs --single-quote --print-width 120` (и то меняет перенос объектов).
+- `FakeLLMClient` из env по-прежнему отвечает `HOLD` — ответ решением `rules` нужен к таску 7.
+
+---
+
 ## 2026-10-12 (Phase 3, таск 2)
 
 **Сделано:** Phase 3, таск 2 «Схема ответа, промпт и разбор (чистые функции)» ✅.

@@ -97,5 +97,9 @@ export function decideByRules(snapshot: CampaignSnapshot, config: RulesConfig): 
 /** Движок `rules` в форме `AgentEngine` для цикла агента. */
 export const rulesEngine: AgentEngine = {
 	name: 'RULES',
-	decide: async (snapshot, config) => decideByRules(snapshot, config),
+	decide: async (snapshot, config) => ({
+		ok: true,
+		proposal: decideByRules(snapshot, config),
+		rawResponse: null,
+	}),
 };

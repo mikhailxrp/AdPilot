@@ -2,13 +2,13 @@
 // ядро тестируется без БД и сети. Реальные зависимости подставляет tick.ts.
 
 import type { CycleConfig, CycleResult } from '@/lib/agent/cycle';
+import type { AgentEngine, AgentEngineName } from '@/lib/agent/types';
 import type { AgentConfigInput } from '@/lib/validations/agent-config';
 
 /** Ошибка, текст которой безопасно показать пользователю. */
 export class TickError extends Error {}
 
 export const NO_ACTIVE_RUN_MESSAGE = 'Прогона нет — сначала сбросьте симулятор с seed';
-export const UNSUPPORTED_ENGINE_MESSAGE = 'LLM-движок появится в Phase 3 — выберите движок rules';
 
 export type TickLockResult<T> = { acquired: true; value: T } | { acquired: false };
 
@@ -17,7 +17,9 @@ export interface TickDeps {
 	getConfig(): Promise<AgentConfigInput>;
 	getActiveRunId(): Promise<string | null>;
 	runWorldTick(): Promise<{ tick: number }>;
-	runCycle(params: { config: CycleConfig; runId: string }): Promise<CycleResult>;
+	/** Бросает, если движок не настроен (например, нет ключа LLM). */
+	createEngine(name: AgentEngineName): AgentEngine;
+	runCycle(params: { config: CycleConfig; runId: string; engine: AgentEngine }): Promise<CycleResult>;
 }
 
 export type TickOutcome =
@@ -28,19 +30,29 @@ function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
+/** Текст ошибки «движок не настроен», например нет `YANDEX_API_KEY` для `LLM`. */
+export function engineSetupMessage(engine: AgentEngineName, error: unknown): string {
+	return `Движок ${engine} не настроен: ${errorMessage(error)}`;
+}
+
 export async function runTickWith(deps: TickDeps): Promise<TickOutcome> {
 	const locked = await deps.withLock(async () => {
 		const config = await deps.getConfig();
 		// Проверки до тика мира: время не должно идти, если агент заведомо не отработает
-		if (config.engine !== 'RULES') throw new TickError(UNSUPPORTED_ENGINE_MESSAGE);
 		const runId = await deps.getActiveRunId();
 		if (!runId) throw new TickError(NO_ACTIVE_RUN_MESSAGE);
+		let engine: AgentEngine;
+		try {
+			engine = deps.createEngine(config.engine);
+		} catch (error) {
+			throw new TickError(engineSetupMessage(config.engine, error), { cause: error });
+		}
 
 		const { tick } = await deps.runWorldTick();
 
 		// Тик мира уже закоммичен — сбой агента его не откатывает
 		try {
-			const cycle = await deps.runCycle({ config, runId });
+			const cycle = await deps.runCycle({ config, runId, engine });
 			return { tick, cycle, cycleError: null };
 		} catch (error) {
 			console.error('Цикл агента упал:', error);

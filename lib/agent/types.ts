@@ -35,10 +35,18 @@ export type RulesConfig = Pick<
 	'minClicks' | 'maxStepPct' | 'maxDailyBudget' | 'cooldownTicks' | 'cpoTolerancePct' | 'windowTicks'
 >;
 
-/** Движок решений. Асинхронный, чтобы `llm` (Phase 3) встал в цикл без переделки. */
+/**
+ * Ответ движка: предложение или отказ («модель не дала решения»). Отказ — значение, а не исключение:
+ * цикл пишет его в журнал как `HOLD` + `REJECTED`. `rawResponse` — сырой ответ LLM, у `rules` — `null`.
+ */
+export type EngineDecision =
+	| { ok: true; proposal: Proposal; rawResponse: string | null }
+	| { ok: false; rejectReason: string; rawResponse: string | null };
+
+/** Движок решений: `rules` или `llm`. */
 export interface AgentEngine {
 	name: AgentEngineName;
-	decide(snapshot: CampaignSnapshot, config: RulesConfig): Promise<Proposal>;
+	decide(snapshot: CampaignSnapshot, config: RulesConfig): Promise<EngineDecision>;
 }
 
 /** Действия, которые меняют кампанию в кабинете. */
