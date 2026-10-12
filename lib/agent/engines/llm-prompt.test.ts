@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AdsCampaign } from '@/lib/ads/types';
-import { LLM_SYSTEM_PROMPT, buildLlmPrompt, valueBounds } from '@/lib/agent/engines/llm-prompt';
+import { LLM_SYSTEM_PROMPT, buildLlmPrompt, comparisonLines, valueBounds } from '@/lib/agent/engines/llm-prompt';
 import { DECISION_ACTIONS, type CampaignSnapshot, type RulesConfig } from '@/lib/agent/types';
 import { NO_DATA } from '@/lib/metrics/format';
 import { computeMetrics, type MetricsInput } from '@/lib/metrics/metrics';
@@ -26,16 +26,23 @@ const CAMPAIGN: AdsCampaign = {
 interface SnapshotOverrides {
 	campaign?: Partial<AdsCampaign>;
 	window?: Partial<MetricsInput>;
+	daySpend?: number;
 }
 
-function snapshot({ campaign, window }: SnapshotOverrides = {}): CampaignSnapshot {
-	const stats: MetricsInput = { impressions: 10_000, clicks: 200, orders: 2, cost: 400_000, ...window };
+function snapshot({ campaign, window, daySpend = 280_000 }: SnapshotOverrides = {}): CampaignSnapshot {
+	const stats: MetricsInput = {
+		impressions: 10_000,
+		clicks: 200,
+		orders: 2,
+		cost: 400_000,
+		...window,
+	};
 	return {
 		campaign: { ...CAMPAIGN, ...campaign },
 		currentTick: 20,
 		window: stats,
 		metrics: computeMetrics(stats),
-		daySpend: 280_000,
+		daySpend,
 	};
 }
 
@@ -96,6 +103,66 @@ describe('buildLlmPrompt', () => {
 			expect(text).not.toContain(hidden);
 		}
 		expect(text).not.toContain(CAMPAIGN.id);
+	});
+});
+
+describe('comparisonLines', () => {
+	const lines = (overrides: SnapshotOverrides): string => comparisonLines(snapshot(overrides), CONFIG).join('\n');
+
+	it('блок «Сравнения» — в пользовательском промпте', () => {
+		const { user } = buildLlmPrompt(snapshot(), CONFIG);
+		expect(user).toContain('Сравнения (посчитаны кодом):');
+		for (const line of comparisonLines(snapshot(), CONFIG)) expect(user).toContain(line);
+	});
+
+	it('CPO 1100 при цели 1000 и допуске 20% → выше цели, но в пределах допустимого', () => {
+		const text = lines({ window: { orders: 4, cost: 440_000 } });
+		expect(text).toContain('- CPO выше цели, но в пределах допустимого — в норме, ставку не снижать;');
+		expect(text.split('\n').filter((line) => line.startsWith('- CPO'))).toHaveLength(1);
+	});
+
+	it('CPO выше допустимого', () => {
+		const text = lines({ window: { orders: 1, cost: 120_001 } });
+		expect(text).toContain('- CPO выше допустимого;');
+	});
+
+	it('CPO ровно на допустимом — в пределах допустимого, как у rules', () => {
+		expect(lines({ window: { orders: 1, cost: 120_000 } })).toContain(
+			'- CPO выше цели, но в пределах допустимого — в норме, ставку не снижать;',
+		);
+	});
+
+	it('CPO не выше цели', () => {
+		expect(lines({ window: { orders: 1, cost: 100_000 } })).toContain('- CPO не выше цели — в норме;');
+	});
+
+	it('заказов нет → сравнение расхода с допустимым CPO, без сравнений CPO', () => {
+		const spent = lines({ window: { orders: 0, cost: 120_000 } });
+		expect(spent).toContain('- заказов нет, расход 1200.00 руб. не меньше допустимого CPO;');
+		expect(spent).not.toContain('- CPO');
+		expect(lines({ window: { orders: 0, cost: 119_999 } })).toContain(
+			'- заказов нет, расход 1199.99 руб. меньше допустимого CPO;',
+		);
+	});
+
+	it('клики относительно минимума', () => {
+		expect(lines({ window: { clicks: 29 } })).toContain('- клики: 29 — меньше минимума 30, данных мало;');
+		expect(lines({ window: { clicks: 30 } })).toContain('- клики: 30 — не меньше минимума 30, данных достаточно;');
+	});
+
+	it('бюджет выбран от 90% за сутки', () => {
+		expect(lines({ daySpend: 270_000 })).toContain('израсходовано 90% дневного бюджета — бюджет выбран (порог 90%)');
+		expect(lines({ daySpend: 269_999 })).toContain('израсходовано 89% дневного бюджета — бюджет не выбран (порог 90%)');
+	});
+
+	it('нулевой дневной бюджет — без деления на ноль', () => {
+		expect(lines({ campaign: { dailyBudget: 0 } })).toContain(`израсходовано ${NO_DATA} дневного бюджета`);
+	});
+
+	it('системный промпт: порядок решений и HOLD в пределах допустимого', () => {
+		expect(LLM_SYSTEM_PROMPT).toContain('Как выбирать действие');
+		expect(LLM_SYSTEM_PROMPT).toContain('CPO в норме — HOLD, ставку не снижать');
+		expect(LLM_SYSTEM_PROMPT).toContain('«Сравнения»');
 	});
 });
 

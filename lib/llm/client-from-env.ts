@@ -16,9 +16,12 @@ const yandexEnvSchema = z.object({
 	LLM_MODEL_URI: z.string().optional(),
 });
 
+/** Модель по умолчанию: Alice AI LLM — лучший результат оценочных сценариев (Phase 3, таск 6.1). */
+export const DEFAULT_MODEL = 'aliceai-llm/latest';
+
 /** URI модели по умолчанию в каталоге. */
 export function defaultModelUri(folderId: string): string {
-	return `gpt://${folderId}/yandexgpt/latest`;
+	return `gpt://${folderId}/${DEFAULT_MODEL}`;
 }
 
 function fail(error: z.ZodError): never {

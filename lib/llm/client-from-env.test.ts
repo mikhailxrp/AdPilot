@@ -41,7 +41,7 @@ describe('createLLMClientFromEnv', () => {
 
 	it('URI модели по умолчанию собирается из каталога, заданный — берётся как есть', async () => {
 		await expect(sentModel(yandexEnv)).resolves.toBe(defaultModelUri('b1gfolder'));
-		await expect(sentModel({ ...yandexEnv, LLM_MODEL_URI: '' })).resolves.toBe('gpt://b1gfolder/yandexgpt/latest');
+		await expect(sentModel({ ...yandexEnv, LLM_MODEL_URI: '' })).resolves.toBe('gpt://b1gfolder/aliceai-llm/latest');
 		await expect(sentModel({ ...yandexEnv, LLM_MODEL_URI: 'gpt://b1gfolder/yandexgpt-lite/latest' })).resolves.toBe(
 			'gpt://b1gfolder/yandexgpt-lite/latest',
 		);

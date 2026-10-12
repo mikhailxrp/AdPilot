@@ -2,6 +2,7 @@
 // Деньги — рубли простыми числами (без ₽ и неразрывных пробелов, чтобы модель не повторяла их в ответе).
 // На вход — только снимок кампании и конфиг: скрытые параметры симулятора сюда не попадают.
 
+import { BUDGET_LIMITED_PCT } from '@/lib/agent/engines/rules';
 import type { CampaignSnapshot, RulesConfig } from '@/lib/agent/types';
 import { NO_DATA } from '@/lib/metrics/format';
 import { kopecksToRub } from '@/lib/metrics/money';
@@ -22,10 +23,20 @@ export const LLM_SYSTEM_PROMPT = [
 	'Действия:',
 	'- WAIT_DATA — данных мало, ждать;',
 	'- HOLD — ничего не менять;',
-	'- LOWER_BID — снизить ставку за клик (value — новая ставка);',
+	'- LOWER_BID — снизить ставку за клик (value — новая ставка), только если CPO выше допустимого или заказов нет;',
 	'- RAISE_BID — повысить ставку за клик (value — новая ставка);',
 	'- RAISE_BUDGET — повысить дневной бюджет (value — новый бюджет);',
 	'- PAUSE — остановить кампанию.',
+	'',
+	'Как выбирать действие (сверху вниз, первое подходящее):',
+	'1. Кампания на паузе — HOLD.',
+	'2. Кликов меньше минимума — WAIT_DATA.',
+	'3. Заказов нет: расход не меньше допустимого CPO — PAUSE или LOWER_BID, иначе WAIT_DATA.',
+	'4. CPO выше допустимого — LOWER_BID или PAUSE.',
+	'5. CPO не выше цели и бюджет выбран — RAISE_BUDGET.',
+	'6. Иначе CPO в норме — HOLD, ставку не снижать.',
+	'Цель CPO — ориентир, а граница — допустимый CPO: CPO выше цели, но в пределах допустимого — это норма, а не повод снижать ставку.',
+	'Опирайся на блок «Сравнения»: в нём числа уже сравнены, сам их не сравнивай.',
 	'',
 	'Правила:',
 	'- деньги — в рублях, числом с точностью до копеек;',
@@ -72,6 +83,47 @@ function boundsLines(bounds: ValueBounds): string[] {
 	];
 }
 
+/**
+ * Один вывод по CPO, а не два («выше цели» + «в пределах допустимого»): в таске 6.1 модель видела
+ * «выше цели» отдельной строкой и снижала ставку, хотя CPO был в допуске.
+ */
+function cpoVerdict(withinTarget: boolean, aboveAllowed: boolean): string {
+	if (aboveAllowed) return '- CPO выше допустимого;';
+	if (withinTarget) return '- CPO не выше цели — в норме;';
+	return '- CPO выше цели, но в пределах допустимого — в норме, ставку не снижать;';
+}
+
+/**
+ * Готовые выводы по кликам, CPO и бюджету — те же сравнения в целых числах, что в `decideByRules`,
+ * чтобы модель не сравнивала числа сама и видела те же факты, что `rules`.
+ */
+export function comparisonLines(snapshot: CampaignSnapshot, config: RulesConfig): string[] {
+	const { campaign, window, daySpend } = snapshot;
+	const { minClicks, cpoTolerancePct } = config;
+	const { targetCpo, dailyBudget } = campaign;
+	const allowedScaled = targetCpo * (PERCENT + cpoTolerancePct);
+
+	const clicks =
+		window.clicks < minClicks
+			? `- клики: ${window.clicks} — меньше минимума ${minClicks}, данных мало;`
+			: `- клики: ${window.clicks} — не меньше минимума ${minClicks}, данных достаточно;`;
+
+	const cpo =
+		window.orders === 0
+			? [
+					window.cost * PERCENT >= allowedScaled
+						? `- заказов нет, расход ${rub(window.cost)} руб. не меньше допустимого CPO;`
+						: `- заказов нет, расход ${rub(window.cost)} руб. меньше допустимого CPO;`,
+				]
+			: [cpoVerdict(window.cost <= window.orders * targetCpo, window.cost * PERCENT > window.orders * allowedScaled)];
+
+	const budgetLimited = daySpend * PERCENT >= dailyBudget * BUDGET_LIMITED_PCT;
+	const spentPct = dailyBudget > 0 ? `${Math.floor((daySpend * PERCENT) / dailyBudget)}%` : NO_DATA;
+	const budget = `- за сутки израсходовано ${spentPct} дневного бюджета — бюджет ${budgetLimited ? 'выбран' : 'не выбран'} (порог ${BUDGET_LIMITED_PCT}%).`;
+
+	return [clicks, ...cpo, budget];
+}
+
 export function buildLlmPrompt(snapshot: CampaignSnapshot, config: RulesConfig): LlmPrompt {
 	const { campaign, currentTick, window, metrics, daySpend } = snapshot;
 	const { minClicks, maxStepPct, maxDailyBudget, cooldownTicks, cpoTolerancePct, windowTicks } = config;
@@ -87,6 +139,9 @@ export function buildLlmPrompt(snapshot: CampaignSnapshot, config: RulesConfig):
 		`- показы: ${window.impressions}, клики: ${window.clicks}, заказы: ${window.orders}, расход: ${rub(window.cost)} руб.`,
 		`- CPC: ${rub(metrics.cpc)} руб., CPM: ${rub(metrics.cpm)} руб., CTR: ${percent(metrics.ctr)}, CR: ${percent(metrics.cr)}, CPO: ${rub(metrics.cpo)} руб.`,
 		`Расход за последние сутки: ${rub(daySpend)} руб. из ${rub(campaign.dailyBudget)} руб.`,
+		'',
+		'Сравнения (посчитаны кодом):',
+		...comparisonLines(snapshot, config),
 		'',
 		'Лимиты:',
 		`- минимум данных для изменений: ${minClicks} кликов за окно;`,
