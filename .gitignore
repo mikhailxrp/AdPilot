@@ -57,3 +57,7 @@ CLAUDE.md
 current-pipeline.md
 TASK-example.md
 TASK.md
+
+# Playwright
+test-results/
+playwright-report/
