@@ -15,7 +15,7 @@ describe('agentConfigSchema', () => {
 			maxDailyBudget: 1_000_000,
 			cooldownTicks: 3,
 			cpoTolerancePct: 20,
-			windowTicks: 6,
+			windowTicks: 16,
 		});
 	});
 

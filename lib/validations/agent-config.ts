@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 // Конфиг агента: единственный источник дефолтов (в Prisma у полей нет @default).
-// Деньги — копейки, проценты — целые. Стартовые пороги подбираются в Phase 2, таск 7.
+// Деньги — копейки, проценты — целые. Стартовые пороги подобраны на моке (Phase 2, таск 7,
+// lib/agent/scenario.test.ts): окно 6 тиков не набирало данных для «плохой», 16 — устойчиво на разных seed.
 
 /** Конфиг в БД всегда один — строка с этим id. */
 export const AGENT_CONFIG_ID = 'default';
@@ -22,7 +23,7 @@ export const AGENT_CONFIG_BOUNDS = {
 	maxDailyBudget: { min: 1, max: 100_000_000, default: 1_000_000 },
 	cooldownTicks: { min: 0, max: 168, default: 3 },
 	cpoTolerancePct: { min: 0, max: 100, default: 20 },
-	windowTicks: { min: 1, max: 168, default: 6 },
+	windowTicks: { min: 1, max: 168, default: 16 },
 } as const satisfies Record<string, IntBounds>;
 
 function boundedInt({ min, max, default: fallback }: IntBounds) {
