@@ -30,6 +30,25 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  worker:
+    build:
+      context: .
+      target: worker
+    image: adpilot-worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # внутри сети Compose мок живёт в сервисе web; localhost из .env был бы самим worker-ом
+      MOCK_API_URL: http://web:3000/api/mock/direct
+    # дать доделать текущий тик после SIGTERM
+    stop_grace_period: 30s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      web:
+        condition: service_started
+
   db:
     image: postgres:17-alpine
     restart: unless-stopped

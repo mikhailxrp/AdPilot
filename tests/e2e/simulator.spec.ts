@@ -63,6 +63,37 @@ test.describe('симулятор', () => {
 		await expect(page.getByRole('table')).toHaveText(firstRun);
 	});
 
+	test('один тик запускает агента и показывает итог без ошибки', async ({ page }) => {
+		await login(page);
+		await page.goto('/simulator');
+		await resetWithSeed(page, SEED);
+
+		await runTicks(page, 1);
+
+		await expect(page.getByText(/^Агент: решений \d+/)).toBeVisible();
+		await expect(page.getByText(/агент не отработал/)).toHaveCount(0);
+	});
+
+	test('переключатель таймера сохраняется после перезагрузки', async ({ page }) => {
+		await login(page);
+		await page.goto('/simulator');
+		const timer = page.getByRole('switch', { name: 'Таймер агента' });
+		await expect(timer).not.toBeChecked();
+
+		try {
+			await timer.click();
+			await expect(timer).toBeChecked();
+			await page.reload();
+			await expect(page.getByRole('switch', { name: 'Таймер агента' })).toBeChecked();
+		} finally {
+			// Таймер по умолчанию выключен — не оставляем его включённым другим тестам
+			await page.goto('/simulator');
+			const current = page.getByRole('switch', { name: 'Таймер агента' });
+			if (await current.isChecked()) await current.click();
+			await expect(current).not.toBeChecked();
+		}
+	});
+
 	test('невалидный seed показывает ошибку у поля', async ({ page }) => {
 		await login(page);
 		await page.goto('/simulator');

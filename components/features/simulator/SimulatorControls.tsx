@@ -3,21 +3,28 @@
 import { useState, useTransition } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { resetAction, tickAction } from '@/actions/simulator';
+import { resetAction, setTimerAction, tickAction, type TickSummary } from '@/actions/simulator';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { DEFAULT_SEED, resetSchema, type ResetFormInput, type ResetInput } from '@/lib/validations/simulator';
 
 interface SimulatorControlsProps {
 	hasRun: boolean;
+	timerEnabled: boolean;
 }
 
 const UNEXPECTED_ERROR_MESSAGE = 'Не удалось выполнить операцию. Попробуйте ещё раз';
 
-export function SimulatorControls({ hasRun }: SimulatorControlsProps) {
+export function SimulatorControls({ hasRun, timerEnabled }: SimulatorControlsProps) {
+	const [isTimerOn, setIsTimerOn] = useState(timerEnabled);
 	const [tickError, setTickError] = useState<string | null>(null);
+	const [tickSummary, setTickSummary] = useState<TickSummary | null>(null);
+	const [timerError, setTimerError] = useState<string | null>(null);
 	const [isTickPending, startTick] = useTransition();
+	const [isTimerPending, startTimer] = useTransition();
 
 	const form = useForm<ResetFormInput, unknown, ResetInput>({
 		resolver: zodResolver(resetSchema),
@@ -28,10 +35,12 @@ export function SimulatorControls({ hasRun }: SimulatorControlsProps) {
 
 	const handleTick = () => {
 		setTickError(null);
+		setTickSummary(null);
 		startTick(async () => {
 			try {
 				const result = await tickAction();
-				if (!result.success) setTickError(result.error ?? UNEXPECTED_ERROR_MESSAGE);
+				if (result.success) setTickSummary(result.data ?? null);
+				else setTickError(result.error ?? UNEXPECTED_ERROR_MESSAGE);
 			} catch (error) {
 				console.error('tickAction failed:', error);
 				setTickError(UNEXPECTED_ERROR_MESSAGE);
@@ -39,8 +48,23 @@ export function SimulatorControls({ hasRun }: SimulatorControlsProps) {
 		});
 	};
 
+	const handleTimerChange = (checked: boolean) => {
+		setTimerError(null);
+		startTimer(async () => {
+			try {
+				const result = await setTimerAction({ timerEnabled: checked });
+				if (result.success) setIsTimerOn(checked);
+				else setTimerError(result.error ?? UNEXPECTED_ERROR_MESSAGE);
+			} catch (error) {
+				console.error('setTimerAction failed:', error);
+				setTimerError(UNEXPECTED_ERROR_MESSAGE);
+			}
+		});
+	};
+
 	const onReset = async (data: ResetInput) => {
 		setTickError(null);
+		setTickSummary(null);
 		try {
 			const result = await resetAction(data);
 			if (!result.success) {
@@ -61,6 +85,34 @@ export function SimulatorControls({ hasRun }: SimulatorControlsProps) {
 				{tickError && (
 					<p role="alert" className="text-sm text-destructive">
 						{tickError}
+					</p>
+				)}
+				{tickSummary && !tickSummary.cycleError && (
+					<p role="status" className="text-sm text-muted-foreground">
+						Агент: решений {tickSummary.decisions}
+						{tickSummary.failures > 0 && `, сбоев ${tickSummary.failures}`}
+					</p>
+				)}
+				{tickSummary?.cycleError && (
+					<p role="alert" className="text-sm text-destructive">
+						Тик {tickSummary.tick} выполнен, но агент не отработал: {tickSummary.cycleError}
+					</p>
+				)}
+			</div>
+			<div className="space-y-2">
+				<div className="flex items-center gap-2">
+					<Switch
+						id="agent-timer"
+						aria-label="Таймер агента"
+						checked={isTimerOn}
+						onCheckedChange={handleTimerChange}
+						disabled={isTimerPending}
+					/>
+					<Label htmlFor="agent-timer">Таймер агента</Label>
+				</div>
+				{timerError && (
+					<p role="alert" className="text-sm text-destructive">
+						{timerError}
 					</p>
 				)}
 			</div>

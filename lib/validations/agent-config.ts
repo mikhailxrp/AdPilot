@@ -44,3 +44,8 @@ export const agentConfigSchema = z.object({
 });
 
 export type AgentConfigInput = z.infer<typeof agentConfigSchema>;
+
+/** Переключатель таймера на /simulator: без дефолта — значение обязано прийти явно. */
+export const timerToggleSchema = z.object({ timerEnabled: z.boolean('Ожидается true или false') });
+
+export type TimerToggleInput = z.infer<typeof timerToggleSchema>;

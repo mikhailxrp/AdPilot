@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-10-12 (Phase 2, таск 5)
+
+**Сделано:** Phase 2, таск 5 «Worker-контейнер + "один тик" через агента» ✅.
+
+- `lib/agent/tick-core.ts` (`runTickWith`, зависимости внедряются) и `lib/agent/tick.ts` (`runAgentTick` с реальными зависимостями): замок → конфиг → проверка движка и прогона → тик мира → цикл агента. Сбой цикла тик мира не откатывает (`cycleError`). `lib/agent/tick-lock.ts`: `pg_try_advisory_xact_lock` в транзакции с `timeout` 60 с, занят — «Тик уже выполняется».
+- `lib/agent/config.ts`: `getAgentConfig()`. `lib/agent/worker-loop.ts` + `worker/index.ts`: конфиг читается каждый круг, SIGTERM доделывает тик и закрывает `db`.
+- `actions/simulator.ts`: `tickAction` через агента (итог: решения / сбои / `cycleError`), `setTimerAction`; `timerToggleSchema` в `agent-config.ts`. `SimulatorControls`: переключатель таймера (shadcn `switch`) и итог агента.
+- Docker: target `worker` в `Dockerfile` (node как PID 1, `--import tsx`), сервис `worker` в Compose с `MOCK_API_URL=http://web:3000/...`, `stop_grace_period: 30s`.
+- `type-check`/`lint`/`test` (257)/`build`/`test:e2e` (12) зелёные. Вручную в Docker: таймер включён → тики растут и пишутся решения; выключен → стоят; `docker compose stop worker` → «Worker остановлен», код 0 за 0,6 с; три одновременных `runAgentTick` → один тик, два `busy`.
+
+**Дальше:** Phase 2, таск 6 «Страница `/journal`» (`journal-queries.ts`, фильтры из `searchParams`, `JournalTable`, ссылка в `AdminNav`).
+
+**Заметки:**
+
+- Ядро вынесено в `tick-core.ts`: `tick.ts` импортирует `lib/db`, который падает без `DATABASE_URL`, и тест ядра не должен зависеть от БД.
+- `SimulatorView` теперь читает конфиг: без строки `agent_configs` (seed не запускали) `/simulator` показывает `error.tsx`.
+- Старый dev-сервер держит в `globalThis` Prisma-клиент без новых моделей — после смены схемы его надо перезапускать (иначе `db.agentConfig` — `undefined`).
+- Docker-проверка оставила `timer_enabled = false`, `tick_interval_sec = 5` в БД — таймер выключен, интервал можно вернуть на 60 вручную.
+- SIGTERM на Windows без Docker не проверить (Node там завершается без обработчика); проверено в контейнере.
+
+---
+
 ## 2026-10-12 (Phase 2, таск 4)
 
 **Сделано:** Phase 2, таск 4 «Цикл агента и запись в журнал» ✅.

@@ -1,11 +1,12 @@
 import { CampaignsTable } from '@/components/features/simulator/CampaignsTable';
 import { SimulatorControls } from '@/components/features/simulator/SimulatorControls';
 import { requireAdmin } from '@/lib/access';
+import { getAgentConfig } from '@/lib/agent/config';
 import { getActiveRunView } from '@/lib/simulator/queries';
 
 export async function SimulatorView() {
 	await requireAdmin();
-	const run = await getActiveRunView();
+	const [run, config] = await Promise.all([getActiveRunView(), getAgentConfig()]);
 
 	return (
 		<section className="space-y-6">
@@ -19,7 +20,7 @@ export async function SimulatorView() {
 					<p className="text-muted-foreground">Прогона нет — сбросьте симулятор с seed.</p>
 				)}
 			</div>
-			<SimulatorControls hasRun={run !== null} />
+			<SimulatorControls hasRun={run !== null} timerEnabled={config.timerEnabled} />
 			{run && <CampaignsTable campaigns={run.campaigns} />}
 		</section>
 	);
