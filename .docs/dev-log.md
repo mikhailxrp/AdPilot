@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-10-12 (Phase 3, таск 2)
+
+**Сделано:** Phase 3, таск 2 «Схема ответа, промпт и разбор (чистые функции)» ✅.
+
+- `lib/validations/llm-decision.ts`: `llmDecisionSchema` `{ action, value (рубли | null), reason (≤ 500) }` и `LLM_DECISION_JSON_SCHEMA` через `z.toJSONSchema` — схема для модели и проверка ответа из одного источника.
+- `lib/agent/engines/llm-prompt.ts`: `buildLlmPrompt(snapshot, config)` → `{ system, user }`. Модель получает готовые метрики, цель, лимиты и границы новых значений (`valueBounds` — те же формулы, что в guardrails); деньги — рубли числами `1234.50`, без `formatRub`.
+- `lib/agent/engines/llm-parse.ts`: `parseLlmDecision(content)` → `Proposal` в копейках или отказ с причиной, исключений не бросает. Снимает ```` ```json ```` -обёртку; для `LOWER_BID`/`RAISE_BID`/`RAISE_BUDGET` `value` обязателен и > 0; у `HOLD`/`WAIT_DATA`/`PAUSE` `value` отбрасывается. Лимиты — по-прежнему guardrails.
+- `lib/metrics/money.ts`: `kopecksToRub`, `rubToKopecks` (`format.ts` не трогали).
+- `type-check`/`lint`/`test` (337)/`build` зелёные.
+
+**Дальше:** Phase 3, таск 3 «Движок `llm` в цикле агента».
+
+**Заметки:**
+
+- `z.toJSONSchema` даёт для `value` `"type": ["number", "null"]` (не `anyOf`); на настоящей модели в `json_schema` не проверялось — проверить в таске 3 через `llm:check` или первый тик; запасной вариант — `json_object`.
+- Cooldown в промпте есть только как лимит: `decide` не получает `lastChangeTick`, модель может предложить изменение во время паузы — его отклонят guardrails.
+- Переименование `AI_YANDEX_KEY` → `YANDEX_API_KEY` в локальном `.env` по-прежнему нужно до таска 3.
+
+---
+
 ## 2026-10-12 (Phase 3, таск 1)
 
 **Сделано:** Phase 3, таск 1 «`LLMClient` + проверка модели Yandex AI Studio» ✅.
