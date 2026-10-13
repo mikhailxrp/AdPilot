@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AdsCampaign } from '@/lib/ads/types';
-import { decideByRules } from '@/lib/agent/engines/rules';
+import { allowedCpo, decideByRules } from '@/lib/agent/engines/rules';
 import type { CampaignSnapshot, RulesConfig } from '@/lib/agent/types';
 import { formatRub } from '@/lib/metrics/format';
 import { computeMetrics, type MetricsInput } from '@/lib/metrics/metrics';
@@ -135,5 +135,15 @@ describe('decideByRules', () => {
 	it('CPO в допуске, но выше цели — бюджет не повышается', () => {
 		const result = decideByRules(snapshot({ window: { orders: 1, cost: 110_000 }, daySpend: 300_000 }), CONFIG);
 		expect(result.action).toBe('HOLD');
+	});
+});
+
+describe('allowedCpo', () => {
+	it('цель + допуск: 1000 ₽ + 20% → 1200 ₽', () => {
+		expect(allowedCpo(100_000, 20)).toBe(120_000);
+	});
+
+	it('допуск 0 → цель', () => {
+		expect(allowedCpo(100_000, 0)).toBe(100_000);
 	});
 });

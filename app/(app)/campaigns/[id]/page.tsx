@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { CampaignCharts } from '@/components/features/campaigns/CampaignCharts';
 import { CampaignSummary } from '@/components/features/campaigns/CampaignSummary';
 import { TickSeriesTable } from '@/components/features/campaigns/TickSeriesTable';
 import { JournalTable } from '@/components/features/journal/JournalTable';
@@ -34,6 +35,13 @@ export default async function CampaignPage({ params }: PageProps<'/campaigns/[id
 				<h1 className="text-2xl font-bold">{campaign.name}</h1>
 				<CampaignSummary campaign={summary} />
 			</div>
+
+			<CampaignCharts
+				points={series}
+				targetCpo={campaign.targetCpo}
+				cpoTolerancePct={config.cpoTolerancePct}
+				windowTicks={config.windowTicks}
+			/>
 
 			<details className="space-y-3">
 				<summary className="cursor-pointer text-lg font-semibold">Данные по тикам</summary>

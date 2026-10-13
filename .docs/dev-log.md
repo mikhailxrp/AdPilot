@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-10-13 (Phase 4, таск 3)
+
+**Сделано:** Phase 4, таск 3 «Графики на `/campaigns/[id]`» ✅.
+
+- shadcn `chart` (`components/ui/chart.tsx`, Recharts 3.8).
+- `TickChart` (Client Component): линейный график по тикам — ось Y и tooltip через `formatRub`, `null` — разрыв линии (`connectNulls={false}`), ориентиры `ReferenceLine` с `ifOverflow="extendDomain"` и легенда под графиком; `<figure>` + `<figcaption>`, `role="img"` + `aria-label`. Маркеры точек — до 48 точек, иначе линия из одной точки не видна.
+- `CampaignCharts` (синхронный Server Component, секция «Графики»): ставка, расход, «CPO за N тиков» с линиями «Цель CPO» и «Допустимый CPO (+N%)»; 0 тиков → «Тиков ещё не было»; заказов в окне не было → подпись «CPO появится после первого заказа в окне». Сетка: один столбец → `lg:grid-cols-3`.
+- `allowedCpo` в `lib/agent/engines/rules.ts` экспортирована — график и правила считают допуск одной функцией.
+- Страница подключает `CampaignCharts` между сводкой и «Данные по тикам»; `loading.tsx` — скелетон трёх графиков.
+- Тесты: `CampaignCharts.test.tsx` (4, `TickChart` замокан), `rules.test.ts` (+2, `allowedCpo`), `panel.spec.ts` (три графика с линией и легендой ориентиров; +1 сценарий «0 тиков → текст вместо графиков»).
+- `type-check`/`lint`/`test` (419)/`build` зелёные; `panel.spec.ts` — 6/6. Скриншоты 1280px, 375px (без горизонтального скролла) и `.dark` — читаются; консоль браузера без ошибок и предупреждений.
+
+**Дальше:** Phase 4, таск 4 «`/dashboard`».
+
+**Заметки:**
+
+- Цвета — `--foreground` / `--muted-foreground` / `--destructive`, а не `--chart-*`: в теме они серые, `--chart-1` (oklch 0.87) не виден на белом. `globals.css` не менялся; если понадобятся цветные серии (дашборд), сначала поправить `--chart-*` в `:root` и `.dark`.
+- Функции нельзя передать из Server в Client Component, поэтому форматирование (`formatRub`) — внутри `TickChart`, а `CampaignCharts` передаёт только данные в копейках.
+- Recharts в jsdom не измеряет контейнер и ничего не рисует — сам график проверяется только e2e.
+- Полный `test:e2e` не прогонялся — только `panel.spec.ts` (остальные сценарии таск не трогает).
+
+---
+
 ## 2026-10-13 (Phase 4, таск 2)
 
 **Сделано:** Phase 4, таск 2 «`/campaigns/[id]`: ряды по тикам и журнал кампании» ✅.

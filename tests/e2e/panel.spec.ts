@@ -16,13 +16,16 @@ async function login(page: Page): Promise<void> {
 	await expect(page).toHaveURL(/\/dashboard/);
 }
 
-async function resetAndTick(page: Page): Promise<void> {
+async function reset(page: Page): Promise<void> {
 	await page.goto('/simulator');
 	await page.getByLabel('Seed').fill(SEED);
 	await page.getByRole('button', { name: 'Сбросить' }).click();
 	await expect(page.getByText(/^Тик 0 · seed /)).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Сбросить' })).toBeEnabled();
+}
 
+async function resetAndTick(page: Page): Promise<void> {
+	await reset(page);
 	await page.getByRole('button', { name: 'Один тик' }).click();
 	await expect(page.getByText(/^Тик 1 · seed /)).toBeVisible();
 }
@@ -80,6 +83,15 @@ test.describe('панель: страница кампании', () => {
 		await expect(summary.getByText(/^Тик 1 · seed /)).toBeVisible();
 		await expect(summary.getByText('архив')).toHaveCount(0);
 
+		const charts = page.getByRole('region', { name: 'Графики' });
+		for (const name of ['Ставка', 'Расход', /^CPO за \d+ тиков/]) {
+			const chart = charts.getByRole('img', { name });
+			await expect(chart).toBeVisible();
+			await expect(chart.locator('svg .recharts-line').first()).toBeAttached();
+		}
+		await expect(charts.getByText(/^Цель CPO:/)).toBeVisible();
+		await expect(charts.getByText(/^Допустимый CPO/)).toBeVisible();
+
 		await page.getByText('Данные по тикам').click();
 		await expect(page.getByRole('columnheader', { name: /^CPO за \d+ тиков$/ })).toBeVisible();
 
@@ -95,6 +107,19 @@ test.describe('панель: страница кампании', () => {
 		await resetAndTick(page);
 		await page.goto(campaignUrl);
 		await expect(page.getByRole('region', { name: 'Сводка кампании' }).getByText('архив')).toBeVisible();
+	});
+
+	test('0 тиков → «Тиков ещё не было» вместо графиков', async ({ page }) => {
+		await login(page);
+		await reset(page);
+
+		await page.goto('/campaigns');
+		await page.getByRole('link', { name: 'Плохая' }).click();
+		await expect(page).toHaveURL(/\/campaigns\/[^/]+$/);
+
+		const charts = page.getByRole('region', { name: 'Графики' });
+		await expect(charts.getByText(/Тиков ещё не было/)).toBeVisible();
+		await expect(charts.getByRole('img')).toHaveCount(0);
 	});
 
 	test('несуществующая кампания → «Кампания не найдена»', async ({ page }) => {

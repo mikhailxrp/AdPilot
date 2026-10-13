@@ -10,8 +10,8 @@ const PERCENT = 100;
 /** Бюджет считается выбранным, если за сутки израсходовано не меньше этой доли, %. */
 export const BUDGET_LIMITED_PCT = 90;
 
-/** Допустимый CPO для текста причины: цель + допуск. */
-function allowedCpo(targetCpo: number, tolerancePct: number): number {
+/** Допустимый CPO: цель + допуск. Общий для текста причины и графика CPO на `/campaigns/[id]`. */
+export function allowedCpo(targetCpo: number, tolerancePct: number): number {
 	return (targetCpo * (PERCENT + tolerancePct)) / PERCENT;
 }
 
