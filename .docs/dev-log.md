@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-10-13 (Phase 5, таск 2)
+
+**Сделано:** Phase 5, таск 2 «Healthcheck и проверка env» ✅.
+
+- `GET /api/health` (`app/api/health/route.ts`, `lib/health.ts`): `SELECT 1` к БД, 200 `{"status":"ok"}` / 503 `{"status":"error"}`, `Cache-Control: no-store`, таймаут пинга 3 с, подробности ошибки — только в `console.error`. Явный `await connection()` (при `cacheComponents` GET-хендлер без runtime-данных мог бы отрендериться при сборке и застыть на «ok»); БД импортируется внутри пинга — без `DATABASE_URL` ответ 503, а не 500.
+- `healthcheck` у `web` в базовом `docker-compose.yml` (`wget` на `127.0.0.1:3000/api/health`): `web` показывается как `healthy`, в том числе в dev.
+- `lib/validations/production-env.ts` + `scripts/check-env.ts`: `AUTH_SECRET`, `ADMIN_PASSWORD`, `POSTGRES_PASSWORD`, `MOCK_API_TOKEN` не пустые и не содержат `change-me`; `AUTH_SECRET` ≥ 32 символов; `AUTH_URL` — URL с `https://`. Скрипт печатает все проблемы списком, значений секретов — никогда.
+- `docker-compose.prod.yml`: `migrate` запускает `check-env` → `migrate deploy` → `db seed`; плохой `.env` → `migrate` падает, `web` и `worker` не стартуют. `AUTH_URL` для `web` и `migrate` — из одного YAML-якоря `x-auth-url`.
+- Тесты: `lib/health.test.ts`, `lib/validations/production-env.test.ts`, `tests/e2e/health.spec.ts`. Вручную: 503 при остановленной `db` (тело без деталей), prod-`migrate` падает на `http://` в `AUTH_URL`, коротком `AUTH_SECRET`, `change-me`, пустом секрете; валидный набор проходит, миграции и seed идемпотентны. `type-check`, `lint`, `test`, `build`, `test:e2e` (38) зелёные.
+
+**Дальше:** Phase 5, таск 3 «Traefik: labels, сеть, локальный Traefik» (`DOMAIN`, `TRAEFIK_*`, роутер без `/api/mock`, `docker-compose.traefik-local.yml`; в `productionEnvSchema` добавить `DOMAIN`).
+
+**Заметки:**
+
+- `migrate` читал `AUTH_URL` только из `env_file`, а `web` — из подстановки Compose: значение, переданное через shell, `check-env` не видел. Теперь `AUTH_URL` для обоих идёт из `x-auth-url`.
+- Проверка `DOMAIN` перенесена в таск 3: переменной нет в Compose и `.env.example` до него, иначе prod-стек сломался бы между тасками.
+- Команда `migrate` в prod-файле повторяет базовую с `check-env` в начале (Compose заменяет `command` целиком) — шаги нужно менять в обоих файлах, в базовом оставлен комментарий.
+- По ревью оставлено осознанно: проверка секретов не ловит остальные `change-me` (`YANDEX_API_KEY`, `YANDEX_FOLDER_ID`, `ADMIN_EMAIL`) и слабые, но «настоящие» пароли — вне списка фазы; `worker` по-прежнему ждёт `web` по `service_started`, а не `service_healthy` — вне scope таска, можно поднять отдельно; публичный `/api/health` не ограничен по частоте (один лёгкий `SELECT 1`, при сбое пишет стек в лог) — риск рядом с «нет ограничения попыток входа».
+- Перед `test:e2e` остановлены `web` и `worker` (порт 3000); после прогона подняты обратно.
+
+---
+
 ## 2026-10-13 (Phase 5, таск 1)
 
 **Сделано:** Phase 5, таск 1 «Прод-Compose: base / override / prod» ✅.

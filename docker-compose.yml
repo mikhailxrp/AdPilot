@@ -9,6 +9,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    # В docker-compose.prod.yml команда повторена с check-env в начале — менять шаги в обоих файлах
     command: sh -c "npx prisma migrate deploy && npx prisma db seed"
     depends_on:
       db:
@@ -26,6 +27,13 @@ services:
       AUTH_TRUST_HOST: 'true'
       # standalone строит URL из HOSTNAME=0.0.0.0 — без AUTH_URL редиректы уходят на 0.0.0.0
       AUTH_URL: ${AUTH_URL:-http://localhost:3000}
+    # /api/health: 200 при живой БД, 503 иначе (wget выходит с ошибкой на 503)
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:3000/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
       migrate:
         condition: service_completed_successfully

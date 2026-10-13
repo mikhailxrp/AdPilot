@@ -8,15 +8,22 @@ x-logging: &logging
     max-size: 10m
     max-file: '3'
 
+# Публичный адрес с https:// — без него Auth.js строит неверные редиректы. Один источник для web и migrate
+x-auth-url: &auth-url ${AUTH_URL:?AUTH_URL не задан — укажи публичный адрес, например https://adpilot.example.com}
+
 services:
   migrate:
     logging: *logging
+    environment:
+      # migrate читает AUTH_URL только отсюда: check-env должен видеть то же значение, что и web
+      AUTH_URL: *auth-url
+    # Сначала проверка .env: заглушки change-me, короткий AUTH_SECRET, http:// в AUTH_URL → migrate падает, web и worker не стартуют
+    command: sh -c "npx tsx scripts/check-env.ts && npx prisma migrate deploy && npx prisma db seed"
 
   web:
     logging: *logging
     environment:
-      # Публичный адрес с https:// — без него Auth.js строит неверные редиректы
-      AUTH_URL: ${AUTH_URL:?AUTH_URL не задан — укажи публичный адрес, например https://adpilot.example.com}
+      AUTH_URL: *auth-url
 
   worker:
     logging: *logging
