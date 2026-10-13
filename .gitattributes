@@ -1,0 +1,2 @@
+# Shell-скрипты выполняются в Alpine: CRLF (core.autocrlf=true на Windows) ломает shebang и синтаксис
+*.sh text eol=lf

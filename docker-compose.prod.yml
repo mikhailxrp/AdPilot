@@ -52,6 +52,36 @@ services:
   db:
     logging: *logging
 
+  # Бэкап: раз в BACKUP_INTERVAL_SEC pg_dump в ./backups (хост), хранение BACKUP_KEEP_DAYS дней. Cron на хосте не нужен.
+  # Проверка дампа: docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backup sh /ops/restore-check.sh
+  # Порты не публикуются, во внешнюю сеть не подключается; env_file нет — приложению секреты не нужны, только доступ к БД
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_INTERVAL_SEC: ${BACKUP_INTERVAL_SEC:-86400}
+    volumes:
+      - ./ops:/ops:ro
+      - ./backups:/backups
+    # Сбой одного дампа не останавливает цикл (пишется в лог); мусор в BACKUP_INTERVAL_SEC роняет контейнер,
+    # а не крутит дампы без паузы. sh /ops/…: exec-бит на bind mount не нужен. $$ — экранирование для Compose
+    command:
+      - sh
+      - -c
+      - 'while true; do sh /ops/backup.sh || echo "[backup] дамп не создан, повтор через $$BACKUP_INTERVAL_SEC с"; sleep "$$BACKUP_INTERVAL_SEC" || exit 1; done'
+    # migrate завершён → в БД уже есть схема, первый дамп не будет дампом пустой БД
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
 networks:
   # Сеть, которую уже создал Traefik на сервере (локально — docker-compose.traefik-local.yml). Здесь только подключаемся
   traefik:

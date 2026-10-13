@@ -65,3 +65,6 @@ playwright-report/
 
 # Prisma
 /generated/
+
+# Бэкапы БД (prod, сервис backup) — содержат данные админа
+/backups

@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-10-13 (Phase 5, таск 4)
+
+**Сделано:** Phase 5, таск 4 «Бэкап и проверка восстановления» ✅.
+
+- `docker-compose.prod.yml`, сервис `backup` (`postgres:17-alpine`): цикл `backup.sh` → `sleep ${BACKUP_INTERVAL_SEC:-86400}`; монтирования `./ops:/ops:ro` и `./backups:/backups`; стартует после `migrate` (`service_completed_successfully`) и `db` (`service_healthy`); без портов, вне сети `traefik`, без `env_file` — только `PGHOST` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` и `BACKUP_*`. Сбой одного дампа не останавливает цикл (пишется в лог), мусор в `BACKUP_INTERVAL_SEC` роняет контейнер, а не гонит дампы без паузы.
+- `ops/backup.sh`: `pg_dump -Fc` во временный `.part` → `mv` в `adpilot-<UTC>.dump`, `umask 077` (права 600); чистка по `BACKUP_KEEP_DAYS`, **самый свежий дамп не удаляется никогда** (при `0` остаётся один); нечисловое `BACKUP_KEEP_DAYS` — exit 1.
+- `ops/restore-check.sh [dump]`: `pg_restore --list` → `pg_restore --exit-on-error` во временную БД `adpilot_restore_check` → сверка счётчиков (`_prisma_migrations`, `users` равны рабочей; `agent_configs` = 1; `decisions`, `tick_stats`, `prompt_versions` не больше рабочей) → удаление временной БД в `trap EXIT`. Печатает таблицу, любой сбой — exit 1.
+- `ops/restore.sh [--yes] <dump>`: отказывается, если к рабочей БД подключён кто-то ещё (подсказывает `docker compose … stop web worker`), спрашивает `yes`, затем `pg_restore --clean --if-exists --exit-on-error --single-transaction` — восстановление атомарное, при ошибке рабочая БД не меняется.
+- `.gitignore` (`/backups`), `.dockerignore` (`backups` — `COPY . .` иначе утащил бы дампы в образ builder), `.gitattributes` (`*.sh text eol=lf` — при `core.autocrlf=true` на Windows `.sh` выкачались бы с CRLF и не запустились в Alpine), `.env.example` (`BACKUP_INTERVAL_SEC`, `BACKUP_KEEP_DAYS`).
+- Тесты: Vitest и e2e не требуются (shell и Compose, TS-логики нет); `type-check`, `lint`, `test`, `build` зелёные. Вручную — в одноразовом контейнере Postgres с копией данных dev-БД (4520 `decisions`, 4864 `tick_stats`): `sh -n` для всех трёх скриптов; дамп с правами 600; цикл из отрендеренной команды compose даёт 3 дампа за 9 с, при остановленной БД — лог ошибки и живой цикл; чистка с `KEEP_DAYS=0` и со старыми mtime; `restore-check` — exit 0 и нет временной БД; обрезанный, пустой и несуществующий файл — exit 1; `restore.sh` отказывает при активном клиенте и без подтверждения, возвращает удалённую строку `decisions` (4519 → 4520), на обрезанном дампе падает без изменения БД.
+
+**Дальше:** Phase 5, таск 5 «Smoke e2e против prod-стека» (`tests/e2e/prod-smoke.spec.ts`, `playwright.config.ts` с `E2E_BASE_URL`, `test:smoke`).
+
+**Заметки:**
+
+- Сам prod-стек за Traefik в этом таске не поднимали: имя проекта `adpilot` совпадает с dev-стеком, `up` пересоздал бы его контейнеры. Скрипты и цикл проверены в изолированном контейнере; «сервис `backup` реально снял дамп в prod-стеке» и `restore-check` на нём — в e2e фазы (таски 5–6, с отдельным `-p`, как в таске 3).
+- `docker compose config` выводит `$$` вместо `$` в команде — это экранирование для повторного ввода, в контейнер уходит `$BACKUP_INTERVAL_SEC`. При эмуляции команды вручную `$$` нужно заменить на `$`.
+- Скрипты запускаются как `sh /ops/x.sh`: exec-бит на bind mount с Windows не сохраняется. `printf` в busybox считает ширину в байтах — заголовок таблицы в `restore-check.sh` выровнен пробелами вручную.
+- Дампы на хосте принадлежат root (контейнер `backup` работает от root) с правами 600 — читать и копировать их на VPS нужно через `sudo`; в README (таск 6).
+- Образ `postgres:17-alpine` закреплён на мажоре, как у `db`: `pg_restore` новее сервера читает дамп, а `pg_dump` старее — нет; при смене версии `db` менять и `backup`.
+- Страховочный дамп перед `restore.sh` не делается (вне scope): перед восстановлением на сервере стоит вручную сделать свежий дамп текущего состояния.
+
+---
+
 ## 2026-10-13 (Phase 5, таск 3)
 
 **Сделано:** Phase 5, таск 3 «Traefik: labels, сеть, локальный Traefik» ✅.
