@@ -7,6 +7,7 @@ const validEnv = {
 	POSTGRES_PASSWORD: 'strong-db-password',
 	MOCK_API_TOKEN: 'strong-mock-token',
 	AUTH_URL: 'https://adpilot.example.com',
+	DOMAIN: 'adpilot.example.com',
 };
 
 function invalidKeys(env: Record<string, unknown>): string[] {
@@ -55,15 +56,35 @@ describe('productionEnvSchema', () => {
 		expect(invalidKeys({ ...validEnv, AUTH_URL: 'adpilot.example.com' })).toContain('AUTH_URL');
 	});
 
+	it('принимает DOMAIN = localhost', () => {
+		expect(productionEnvSchema.safeParse({ ...validEnv, DOMAIN: 'localhost' }).success).toBe(true);
+	});
+
+	it.each([undefined, ''])('отклоняет незаданный DOMAIN (%j)', (value) => {
+		expect(invalidKeys({ ...validEnv, DOMAIN: value })).toContain('DOMAIN');
+	});
+
+	it.each([
+		'https://adpilot.example.com',
+		'adpilot.example.com/',
+		'adpilot.example.com/app',
+		'adpilot.example.com:8443',
+		'adpilot example.com',
+		' adpilot.example.com',
+		'-adpilot.example.com',
+	])('отклоняет DOMAIN «%s»', (value) => {
+		expect(invalidKeys({ ...validEnv, DOMAIN: value })).toContain('DOMAIN');
+	});
+
 	it('пишет «не задан» для отсутствующих переменных', () => {
-		const result = productionEnvSchema.safeParse({ ...validEnv, AUTH_URL: undefined, ADMIN_PASSWORD: undefined });
+		const result = productionEnvSchema.safeParse({ ...validEnv, AUTH_URL: undefined, ADMIN_PASSWORD: undefined, DOMAIN: '' });
 		const messages = result.error?.issues.map((issue) => issue.message) ?? [];
-		expect(messages.filter((message) => message === 'не задан')).toHaveLength(2);
+		expect(messages.filter((message) => message === 'не задан')).toHaveLength(3);
 	});
 
 	it('собирает все ошибки сразу', () => {
-		const keys = invalidKeys({ ...validEnv, AUTH_SECRET: 'change-me', ADMIN_PASSWORD: '', AUTH_URL: 'http://x.ru' });
-		expect(keys).toEqual(expect.arrayContaining(['AUTH_SECRET', 'ADMIN_PASSWORD', 'AUTH_URL']));
+		const keys = invalidKeys({ ...validEnv, AUTH_SECRET: 'change-me', ADMIN_PASSWORD: '', AUTH_URL: 'http://x.ru', DOMAIN: 'https://x.ru' });
+		expect(keys).toEqual(expect.arrayContaining(['AUTH_SECRET', 'ADMIN_PASSWORD', 'AUTH_URL', 'DOMAIN']));
 	});
 
 	it('не кладёт значения секретов в сообщения', () => {

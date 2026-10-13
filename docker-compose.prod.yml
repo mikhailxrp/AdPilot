@@ -11,12 +11,16 @@ x-logging: &logging
 # Публичный адрес с https:// — без него Auth.js строит неверные редиректы. Один источник для web и migrate
 x-auth-url: &auth-url ${AUTH_URL:?AUTH_URL не задан — укажи публичный адрес, например https://adpilot.example.com}
 
+# Домен, на котором Traefik отдаёт панель (только имя хоста, без https://). Один источник для web (labels) и migrate (check-env)
+x-domain: &domain ${DOMAIN:?DOMAIN не задан — укажи домен без https://, например adpilot.example.com}
+
 services:
   migrate:
     logging: *logging
     environment:
-      # migrate читает AUTH_URL только отсюда: check-env должен видеть то же значение, что и web
+      # migrate читает AUTH_URL и DOMAIN только отсюда: check-env должен видеть те же значения, что и web
       AUTH_URL: *auth-url
+      DOMAIN: *domain
     # Сначала проверка .env: заглушки change-me, короткий AUTH_SECRET, http:// в AUTH_URL → migrate падает, web и worker не стартуют
     command: sh -c "npx tsx scripts/check-env.ts && npx prisma migrate deploy && npx prisma db seed"
 
@@ -24,9 +28,32 @@ services:
     logging: *logging
     environment:
       AUTH_URL: *auth-url
+    # default — внутренняя сеть (db, worker); traefik — внешняя сеть, в которой Traefik видит web.
+    # Остальные сервисы во внешнюю сеть не подключаются
+    networks:
+      - default
+      - traefik
+    labels:
+      - traefik.enable=true
+      # web в двух сетях: без этой метки Traefik может выбрать внутреннюю и не достучаться
+      - traefik.docker.network=${TRAEFIK_NETWORK}
+      # Имена роутера и сервиса — adpilot: они общие для всех стеков на этом Traefik.
+      # /api/mock снаружи не находит роутер → 404; worker ходит в мок по внутренней сети (web:3000)
+      - 'traefik.http.routers.adpilot.rule=Host(`${DOMAIN}`) && !PathPrefix(`/api/mock`)'
+      - traefik.http.routers.adpilot.entrypoints=${TRAEFIK_ENTRYPOINT:?TRAEFIK_ENTRYPOINT не задан — entrypoint HTTPS-трафика в Traefik, обычно websecure}
+      - traefik.http.routers.adpilot.tls=true
+      # Пустое значение (локальный Traefik) — сертификат по умолчанию, без ACME
+      - traefik.http.routers.adpilot.tls.certresolver=${TRAEFIK_CERTRESOLVER:-}
+      - traefik.http.services.adpilot.loadbalancer.server.port=3000
 
   worker:
     logging: *logging
 
   db:
     logging: *logging
+
+networks:
+  # Сеть, которую уже создал Traefik на сервере (локально — docker-compose.traefik-local.yml). Здесь только подключаемся
+  traefik:
+    name: ${TRAEFIK_NETWORK:?TRAEFIK_NETWORK не задан — имя docker-сети Traefik (docker network ls на сервере)}
+    external: true

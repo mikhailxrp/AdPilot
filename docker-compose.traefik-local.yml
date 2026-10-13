@@ -1,0 +1,35 @@
+# Локальная эмуляция серверного Traefik — на VPS не используется (там Traefik уже работает).
+# Запуск — отдельным проектом, ДО prod-стека (он подключается к этой сети как к внешней):
+#   docker compose -f docker-compose.traefik-local.yml up -d
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Нужны свободные порты 80 и 443. В .env: DOMAIN=localhost, AUTH_URL=https://localhost, TRAEFIK_NETWORK=traefik,
+# TRAEFIK_ENTRYPOINT=websecure (имя entrypoint ниже), TRAEFIK_CERTRESOLVER пустой.
+# Сертификат самоподписанный — браузер и curl -k предупредят, это нормально.
+name: traefik-local
+
+services:
+  traefik:
+    image: traefik:v3.6
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      # Маршрутизируются только контейнеры с traefik.enable=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      # TLS без своих файлов: Traefik отдаёт сгенерированный самоподписанный сертификат
+      - --entrypoints.websecure.http.tls=true
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - traefik
+
+networks:
+  # Создаёт сеть с тем же именем, что TRAEFIK_NETWORK в .env; prod-стек подключается к ней как к внешней
+  traefik:
+    name: ${TRAEFIK_NETWORK:?TRAEFIK_NETWORK не задан — например traefik}

@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-10-13 (Phase 5, таск 3)
+
+**Сделано:** Phase 5, таск 3 «Traefik: labels, сеть, локальный Traefik» ✅.
+
+- `docker-compose.prod.yml`: `web` в двух сетях — внутренней `default` и внешней `traefik` (`name: ${TRAEFIK_NETWORK}`, `external: true`); `db`, `worker`, `migrate` во внешнюю не подключены. Labels: `traefik.enable`, `traefik.docker.network`, роутер `adpilot` с правилом `Host(DOMAIN) && !PathPrefix(/api/mock)`, `entrypoints=${TRAEFIK_ENTRYPOINT}`, `tls=true`, `tls.certresolver=${TRAEFIK_CERTRESOLVER:-}`, порт сервиса 3000. `DOMAIN`, `TRAEFIK_NETWORK`, `TRAEFIK_ENTRYPOINT` обязательные (`${VAR:?}`), `DOMAIN` для `web` и `migrate` — из одного якоря `x-domain`.
+- `docker-compose.traefik-local.yml` (проект `traefik-local`): `traefik:v3.6` на 80/443, docker provider с `exposedbydefault=false`, редирект `web` → `websecure`, самоподписанный сертификат, dashboard выключен; создаёт сеть `${TRAEFIK_NETWORK}`, prod-стек подключается к ней как к внешней — так же, как на VPS.
+- `productionEnvSchema`: поле `DOMAIN` — только имя хоста, без схемы, порта, пути и пробелов. `scripts/check-env.ts` не менялся. `.env.example`: `DOMAIN`, `TRAEFIK_NETWORK`, `TRAEFIK_ENTRYPOINT`, `TRAEFIK_CERTRESOLVER` с пояснениями и значениями для локальной проверки.
+- Тесты: `production-env.test.ts` (27) — `DOMAIN` задан / пуст / со схемой / с путём / с портом / с пробелом, `localhost`, сбор всех ошибок. E2E не требуется (инфраструктура), сквозной сценарий — таск 5. `type-check`, `lint`, `test` (554), `build` зелёные.
+- Вручную (prod-стек за локальным Traefik, `DOMAIN=localhost`, отдельный проект `adpilot-check`): `check-env` проходит, `web` `healthy`; `http://` → 301 на `https://`; гость на `/dashboard` → `/login`; `/api/mock/...` снаружи — 404 (в том числе с сессией админа), из `worker` по `web:3000` — 200; все cookie Auth.js с `Secure`; вход и два «Один тик» через `https://localhost` проходят; у `web` и `db` нет опубликованных портов. `config` без `DOMAIN` / `TRAEFIK_NETWORK` / `TRAEFIK_ENTRYPOINT` падает с понятным сообщением.
+
+**Дальше:** Phase 5, таск 4 «Бэкап и проверка восстановления» (`ops/backup.sh`, `ops/restore.sh`, `ops/restore-check.sh`, сервис `backup` в `docker-compose.prod.yml`, `/backups` в `.gitignore`, `BACKUP_*` в `.env.example`).
+
+**Заметки:**
+
+- Пустой `TRAEFIK_CERTRESOLVER` (label `tls.certresolver=` без значения) не ломает роутер — отдельная переменная для локального запуска не понадобилась.
+- Локальный Traefik взят `v3.6`, а не `v3.4` из доки: более ранние v3 не работали с Docker 29 (минимальная версия API выросла). Версия Traefik на сервере по-прежнему допущение — правило с `!PathPrefix` работает и в v2, и в v3.
+- Имя entrypoint в `docker-compose.traefik-local.yml` зашито (`websecure`) — в локальном `.env` `TRAEFIK_ENTRYPOINT` должен совпадать. Порядок: сначала `traefik-local`, потом prod-стек (сеть внешняя и должна существовать).
+- Prod-стек локально проверялся без правок `.env`: отдельный проект (`-p adpilot-check`, свой volume), второй `--env-file` и override с дополнительным `env_file` для `migrate` / `web` / `worker` со «взрослыми» секретами. Dev-стек (порты 3000 / 5434, volume `adpilot_db_data`) не затронут. Этот приём можно перенести в README (таск 6).
+- Хост в `AUTH_URL` и `DOMAIN` между собой не сверяются — осознанно вне scope, разное значение даёт неверные редиректы Auth.js; кандидат на отдельное правило схемы.
+- В моём `.env` пока нет `DOMAIN` и `TRAEFIK_*` — для dev не нужны, для запуска prod-файла нужно добавить.
+- Таймер worker-а в проверке не включали: мок из `worker` проверен прямым запросом к `web:3000`, ручной «Один тик» — через Traefik.
+
+---
+
 ## 2026-10-13 (Phase 5, таск 2)
 
 **Сделано:** Phase 5, таск 2 «Healthcheck и проверка env» ✅.
