@@ -106,8 +106,156 @@ docker compose up --build   # db → migrate (миграции + seed админ
 
 E2E: `npm run test:e2e` (нужны запущенный `db` с seed-ом; приложение Playwright поднимет сам или возьмёт уже работающее на `localhost:3000`).
 
+Так запускается разработка. Деплой на сервер — в разделе «Развёртывание на VPS» ниже.
+
+---
+
+## Развёртывание на VPS
+
+AdPilot ставится на сервер, где **уже работает Traefik**: он держит порты 80/443, выпускает сертификат и редиректит `http` → `https`. Своего reverse proxy в проекте нет. Панель открывается по HTTPS на твоём домене; БД и мок Директа снаружи не видны (порты на хосте не публикуются, `/api/mock/*` снаружи отвечает 404, worker ходит в мок по внутренней сети).
+
+Команды ниже — для Linux-сервера. Чтобы не набирать длинный префикс, в сессии можно завести псевдоним (дальше он используется в примерах):
+
+```bash
+alias dcp='docker compose -f docker-compose.yml -f docker-compose.prod.yml'
+```
+
+Явные `-f` важны: они отключают `docker-compose.override.yml`, который для разработки публикует порты `3000` и `5434`.
+
+### Что нужно заранее
+
+- Сервер с Docker и Docker Compose, **2 ГБ RAM или своп**: `next build` в Docker на меньшем объёме может упасть по памяти. Если сборка падает, собирай образы по одному: `dcp build migrate`, затем `dcp build web`, затем `dcp build worker`.
+- Домен с **A-записью** на IP сервера.
+- Работающий Traefik с HTTPS entrypoint и настроенным resolver-ом сертификатов (Let's Encrypt).
+- Порты 80 и 443 на сервере принадлежат Traefik — AdPilot их не занимает.
+
+### Где взять параметры Traefik
+
+Все три значения нужны Compose для сети и labels; ищи их в конфиге Traefik на сервере (compose-файл или `traefik.yml`).
+
+| Переменная             | Что это                                               | Где посмотреть                                                                 |
+| ---------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `TRAEFIK_NETWORK`      | Внешняя docker-сеть, в которой работает Traefik       | `docker network ls`; или `networks` в compose-файле Traefik                    |
+| `TRAEFIK_ENTRYPOINT`   | Entrypoint HTTPS-трафика, обычно `websecure`          | `--entrypoints.<имя>.address=:443` в конфиге Traefik                           |
+| `TRAEFIK_CERTRESOLVER` | Имя resolver-а сертификатов, например `letsencrypt`   | `--certificatesresolvers.<имя>…` в конфиге Traefik                             |
+
+Правило роутера (`Host(...) && !PathPrefix(...)`) работает и в Traefik v2, и в v3. Имена роутера и сервиса — `adpilot`: они общие для всех стеков на этом Traefik, и у соседних проектов должны быть другие.
+
+### Первый запуск
+
+```bash
+git clone <адрес репозитория> adpilot && cd adpilot
+cp .env.example .env
+chmod 600 .env
+```
+
+Открой `.env` и заполни раздел «Прод (VPS)»:
+
+- `DOMAIN` — домен без `https://`, например `adpilot.example.com`.
+- `AUTH_URL` — тот же домен **с** `https://`: `https://adpilot.example.com`.
+- `TRAEFIK_NETWORK`, `TRAEFIK_ENTRYPOINT`, `TRAEFIK_CERTRESOLVER` — из таблицы выше.
+- Секреты — замени все `change-me`: `POSTGRES_PASSWORD`, `AUTH_SECRET` (не короче 32 символов, `npx auth secret`), `ADMIN_PASSWORD`, `MOCK_API_TOKEN` (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`). Вне `.env` их нигде не хранят, в Git `.env` не попадает.
+- `ADMIN_EMAIL` — логин админа.
+- Движок LLM: `LLM_CLIENT=yandex` + `YANDEX_API_KEY` и `YANDEX_FOLDER_ID`, либо `LLM_CLIENT=fake` — без сети и ключей. Эти поля проверка `.env` не контролирует: с `change-me` стек стартует, а вызовы модели будут падать.
+
+Запуск:
+
+```bash
+dcp up -d --build
+dcp ps
+```
+
+Что происходит само: поднимается `db` → `migrate` сначала проверяет `.env` (заглушки `change-me`, короткий `AUTH_SECRET`, `http://` в `AUTH_URL` или некорректный `DOMAIN` — `migrate` падает с перечнем проблем, `web` и `worker` не стартуют), затем применяет миграции и seed админа → стартуют `web`, `worker` и `backup`. Через минуту `web` должен быть `healthy`, а `https://<домен>` — открывать страницу входа. Войди как `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+
+Таймер агента по умолчанию **выключен**: включается переключателем «Таймер агента» на `/simulator`, интервал и остальные пороги — в `/settings`. Без таймера агент работает по кнопке «Один тик».
+
+### Обновление
+
+```bash
+git pull
+dcp up -d --build
+```
+
+Образы пересобираются, миграции и seed выполняются заново сами (повторный seed ничего не дублирует). Перед обновлением с миграциями полезно убедиться, что свежий дамп есть (см. «Бэкап»).
+
+### Логи и состояние
+
+```bash
+dcp ps                       # статусы, у web — healthy
+dcp logs -f web worker       # логи приложения и агента
+dcp logs backup              # результат последних дампов
+curl -s https://<домен>/api/health   # {"status":"ok"} при живой БД, иначе 503
+```
+
+Логи ротируются сами: у каждого контейнера 3 файла по 10 МБ — диск не забьётся. `/api/health` открыт всем и отдаёт только `ok` / `error`, без деталей.
+
+### Бэкап
+
+Сервис `backup` раз в `BACKUP_INTERVAL_SEC` (по умолчанию сутки) делает `pg_dump` в папку `./backups` **на хосте** и удаляет дампы старше `BACKUP_KEEP_DAYS` (по умолчанию 14). Самый свежий дамп не удаляется никогда. Cron на хосте не нужен.
+
+```bash
+ls -l backups                             # дампы adpilot-<дата-время>.dump
+dcp exec backup sh /ops/backup.sh         # снять дамп прямо сейчас
+dcp exec backup sh /ops/restore-check.sh  # проверить последний дамп (или указать файл: /backups/adpilot-….dump)
+```
+
+`restore-check.sh` разворачивает дамп во **временную** БД, сверяет счётчики таблиц с рабочей, печатает таблицу и удаляет временную БД; рабочая не меняется. `exit 0` — дамп восстанавливается, любой сбой — `exit 1`. Проверяй так после первого дампа и периодически после.
+
+**Дампы принадлежат root и имеют права 600** — читать и копировать их нужно через `sudo`. В дампе хеш пароля админа и весь журнал решений, поэтому папку `./backups` никому не раздавай; в Git и в образ она не попадает.
+
+**Копирование за пределы сервера** автоматически не делается — иначе дамп потеряется вместе с сервером. Пример с твоего компьютера:
+
+```bash
+rsync -av --rsync-path="sudo rsync" user@сервер:/путь/к/adpilot/backups/ ./adpilot-backups/
+```
+
+### Восстановление БД из дампа
+
+`restore.sh` **заменяет** данные в рабочей БД содержимым дампа.
+
+```bash
+dcp exec backup sh /ops/backup.sh                 # 1. страховочный дамп текущего состояния — скрипт сам его не делает
+dcp stop web worker                               # 2. пока к БД подключены web или worker, скрипт откажется работать
+dcp exec backup sh /ops/restore.sh /backups/adpilot-<дата>.dump   # 3. спросит подтверждение: введи yes
+dcp up -d                                         # 4. запустить сервисы
+```
+
+Восстановление атомарное: при ошибке рабочая БД остаётся как была. Версия `postgres` у `db` и `backup` должна совпадать по мажору (сейчас `17`): `pg_restore` новее сервера дамп прочитает, а `pg_dump` старее — нет, поэтому при смене версии меняй оба образа вместе.
+
+### Smoke-проверка домена
+
+С твоего компьютера (нужны репозиторий, `npm ci` и `npx playwright install chromium`):
+
+```bash
+E2E_BASE_URL=https://<домен> ADMIN_EMAIL=… ADMIN_PASSWORD=… npm run test:smoke
+```
+
+Проверяется: гость на `/dashboard` уходит на `/login`; админ входит, сбрасывает симулятор и делает три тика; в `/journal` есть записи, а в карточке «Расход» не ноль; `/api/health` — 200; мок снаружи — 404; `http://` → `https://`. Доступ к БД не нужен.
+
+> **Smoke меняет данные на целевом стеке.** «Сбросить» архивирует активный прогон и создаёт новый (журнал только дополняется, но активный прогон сменится), а тики идут тем движком, что выбран в `/simulator`: при LLM три тика уйдут в платную модель. Для проверки на живом стеке поставь движок `rules` или `LLM_CLIENT=fake`.
+
+### Локальная проверка prod-стека
+
+Прод-файл можно проверить на своей машине за локальным Traefik (`docker-compose.traefik-local.yml`, 80/443, самоподписанный сертификат). Нужны свободные порты 80 и 443.
+
+В `.env`: `DOMAIN=localhost`, `AUTH_URL=https://localhost`, `TRAEFIK_NETWORK=traefik`, `TRAEFIK_ENTRYPOINT=websecure`, `TRAEFIK_CERTRESOLVER=` (пусто), секреты без `change-me`, для проверки без платных вызовов — `LLM_CLIENT=fake`.
+
+```bash
+docker compose down                                          # имя проекта adpilot общее с dev-стеком — остановить его (данные в volume сохраняются)
+docker compose -f docker-compose.traefik-local.yml up -d     # сначала Traefik: он создаёт сеть
+dcp up -d --build                                            # потом prod-стек
+E2E_BASE_URL=https://localhost npm run test:smoke
+```
+
+Чтобы не трогать данные dev-БД, запускай prod-стек отдельным проектом с собственным volume: `docker compose -p adpilot-check -f docker-compose.yml -f docker-compose.prod.yml …`. После проверки: `dcp down`, `docker compose -f docker-compose.traefik-local.yml down`. Браузер и `curl` предупредят о самоподписанном сертификате (`curl -k`) — это нормально. В Git Bash на Windows пути вида `/ops/…` в `docker compose exec` превращаются в `C:/Program Files/Git/ops/…` — запускай с `MSYS_NO_PATHCONV=1`.
+
+### Известные ограничения
+
+- **Нет ограничения попыток входа.** `/login` на публичном домене можно перебирать. Единственная защита — длинный `ADMIN_PASSWORD`; при необходимости ограничь доступ к `/login` на стороне Traefik (middleware `ratelimit` или `ipallowlist`).
+- Доступ к БД снаружи закрыт; для ручного запроса: `dcp exec db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'`.
+
 ---
 
 ## Технологии
 
-Next.js, TypeScript, PostgreSQL + Prisma, Auth.js, Tailwind CSS + shadcn/ui, Yandex AI Studio. Сервисы web, worker и db запускаются через Docker Compose.
+Next.js, TypeScript, PostgreSQL + Prisma, Auth.js, Tailwind CSS + shadcn/ui, Yandex AI Studio. Сервисы web, worker и db запускаются через Docker Compose; на VPS добавляется `backup` (дампы БД по таймеру), а HTTPS даёт Traefik, уже работающий на сервере.

@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-10-13 (Phase 5, таск 6 — фаза закрыта)
+
+**Сделано:** Phase 5, таск 6 «README по развёртыванию и документация фазы» ✅. **Phase 5 «VPS» завершена.**
+
+- `README.md`: раздел «Развёртывание на VPS» — требования (Docker, 2 ГБ RAM или своп, A-запись, работающий Traefik), где взять `TRAEFIK_*`, заполнение `.env`, первый запуск и обновление, логи и `/api/health`, бэкап (`ls`, `backup.sh`, `restore-check.sh`, дампы root/600, вынос за пределы сервера), восстановление (страховочный дамп → `stop web worker` → `restore.sh` → `up -d`), smoke против домена с предупреждением о смене данных, локальная проверка через `traefik-local`, известные ограничения. «Технологии» дополнены `backup` и Traefik.
+- `.docs/prd.md`: «Деплой», «Отличия от стека» (Traefik вместо своего proxy, три compose-файла, shell в `ops/`), «Роли и доступ» (`/api/health`, мок снаружи 404), требование 9 (все пункты `[x]`), переменные окружения, роадмап Phase 5. `_status.md` и `phase-5.md` — ✅.
+- Тесты: Vitest и новые e2e не требуются (документация). `type-check`, `lint`, `test` (554), `build` зелёные.
+- **E2E фазы пройден локально** (prod-стек за `traefik-local`, `DOMAIN=localhost`, `LLM_CLIENT=fake`, отдельный проект `-p adpilot-check` со свежей БД, таймер выключен): `test:smoke` — 5 из 5; `/api/health` 200; сервис `backup` сам снял первый дамп, `backup.sh` вручную — второй; `restore-check.sh` — exit 0, временной БД после проверки нет; `restore.sh` отказывает при запущенных web и worker, после `stop web worker` возвращает удалённую запись `decisions` (11 → 12), `up -d` перезапускает `migrate` (миграции и seed идут при каждом `up`); порты web и db prod-стека на хосте не опубликованы (`localhost:3000` не отвечает). После проверки стек, volume и Traefik удалены; `npm run test:e2e` на dev-стеке — 38 passed, 5 skipped (smoke).
+
+**Итог фазы:** одна команда `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build` поднимает web, worker, db, migrate и backup; панель отдаётся Traefik-ом по HTTPS на `DOMAIN`, мок и БД снаружи закрыты, `.env` проверяется до миграций, бэкапы идут по таймеру, восстановление проверяется скриптом. Деплой на реальный VPS админ делает сам по README — на реальном сервере он не проверялся (в том числе версия Traefik и выпуск сертификата Let's Encrypt).
+
+**Риски и долги (в Phase 5 не закрывались):**
+
+- **Нет ограничения попыток входа** на публичном домене: `/login` можно перебирать, защита — только длинный `ADMIN_PASSWORD`. В README — совет про `ratelimit` / `ipallowlist` в Traefik.
+- Публичный `/api/health` не ограничен по частоте (лёгкий `SELECT 1`, при сбое пишет стек в лог).
+- `worker` ждёт `web` по `service_started`, а не `service_healthy`.
+- `check-env` не проверяет `YANDEX_API_KEY` / `YANDEX_FOLDER_ID` / `ADMIN_EMAIL` на заглушки и не сверяет хост в `AUTH_URL` с `DOMAIN`.
+- Страховочный дамп перед `restore.sh` не делается автоматически — в README это ручной шаг.
+- Автоматической отправки бэкапов за пределы сервера нет — только инструкция `rsync`.
+- `npm audit` (5 high) по-прежнему не разбирали.
+
+**Дальше:** Phase 6 «Песочница Директа» (опционально) — `DirectSandboxProvider`, dry-run по умолчанию включён; либо выкладка на реальный VPS по README.
+
+**Заметки:**
+
+- Проверочный prod-стек поднимался без правок `.env`: отдельный проект `-p adpilot-check` (свой volume), второй `--env-file` с `DOMAIN` / `TRAEFIK_*` / `AUTH_URL` и override-файл с `env_file: LLM_CLIENT=fake`. Этот приём описан в README (локальная проверка).
+- Шелл-скрипты запускались как `sh /ops/…` через `docker compose exec -T`, в Git Bash — с `MSYS_NO_PATHCONV=1` (в README на это есть заметка).
+- Проверочные дампы удалены из `./backups`, оставлен дамп из таска 5. Dev-контейнеры `web` / `worker` как были остановлены до проверки, так и остались; dev-`db` работает.
+
+---
+
 ## 2026-10-13 (Phase 5, таск 5)
 
 **Сделано:** Phase 5, таск 5 «Smoke e2e против prod-стека» ✅.
