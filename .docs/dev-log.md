@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-10-13 (Phase 4, таск 1)
+
+**Сделано:** Phase 4, таск 1 «Навигация + `/campaigns`» ✅. Phase 4 начата (🔄).
+
+- `/campaigns` (`app/(app)/campaigns/`: `page`, `loading`, `error`): `requireAdmin()` → `getActiveRunView()` → `CampaignsList`; без активного прогона — «Прогона нет» со ссылкой на `/simulator`.
+- `CampaignsList` (Server Component): название → `/campaigns/<id>`, состояние, ставка, бюджет/сутки, цель CPO, расход, заказы, CPC / CTR / CR / CPO; без данных — «нет данных».
+- `AdminNav`: пункт «Кампании», активность по префиксу (`/campaigns/[id]` подсвечивает «Кампании», `/campaigns-archive` — нет); `flex-wrap` — 4 пункта не помещались в 375px.
+- Тесты: `CampaignsList.test.tsx` (4), `AdminNav.test.tsx` (+3), `tests/e2e/panel.spec.ts` (гость → `/login`; seed 42 → тик → 4 кампании, ссылка «Плохая»).
+- `type-check`/`lint`/`test` (401)/`build` зелёные; `test:e2e` — 21/21 без `llm.spec`.
+
+**Дальше:** Phase 4, таск 2 «`/campaigns/[id]`: ряды по тикам и журнал кампании».
+
+**Заметки:**
+
+- Отклонения от `phase-4.md` (согласованы, план фазы поправлен): новый `lib/campaigns/queries.ts` не создавали — `getActiveRunView()` уже отдаёт кампании с итогами и метриками без `CampaignTruth`, файл появится в таске 2 с `getCampaignDetail(id)`; пункт «Настройки» перенесён в таск 5, чтобы в меню не было ссылки на 404.
+- До таска 2 ссылки из `/campaigns` ведут на 404 — так задумано.
+- `llm.spec` не прогнан: был запущен dev-сервер без `LLM_CLIENT=fake`, тест упал на защитной проверке (успел сходить в настоящую модель). Второй `next dev` в той же папке не стартует («Another next dev server is already running»), `E2E_PORT` не помогает. Перед e2e фазы — останавливать dev-сервер.
+- С `cacheComponents` после клиентского перехода предыдущая страница остаётся в DOM скрытой (Activity): `getByText` находит два элемента. В e2e — `.filter({ visible: true })`.
+- `.dark` в проекте включается классом, а не `prefers-color-scheme` — тёмную тему через `emulateMedia` не проверить.
+
+---
+
 ## 2026-10-13 (Phase 3, таск 7)
 
 **Сделано:** Phase 3, таск 7 «E2E фазы и документация» ✅ — **Phase 3 завершена**.

@@ -6,18 +6,24 @@ import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
 	{ href: '/dashboard', label: 'Дашборд' },
+	{ href: '/campaigns', label: 'Кампании' },
 	{ href: '/simulator', label: 'Симулятор' },
 	{ href: '/journal', label: 'Журнал' },
 ] as const;
+
+// Раздел активен и на вложенных страницах: /campaigns/[id] подсвечивает «Кампании»
+function isSectionActive(pathname: string, href: string): boolean {
+	return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function AdminNav() {
 	const pathname = usePathname();
 
 	return (
 		<nav aria-label="Основная навигация">
-			<ul className="flex items-center gap-1">
+			<ul className="flex flex-wrap items-center gap-1">
 				{NAV_ITEMS.map(({ href, label }) => {
-					const isActive = pathname === href;
+					const isActive = isSectionActive(pathname, href);
 
 					return (
 						<li key={href}>
