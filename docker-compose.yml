@@ -1,3 +1,5 @@
+name: adpilot
+
 services:
   migrate:
     build:
@@ -24,8 +26,6 @@ services:
       AUTH_TRUST_HOST: 'true'
       # standalone строит URL из HOSTNAME=0.0.0.0 — без AUTH_URL редиректы уходят на 0.0.0.0
       AUTH_URL: ${AUTH_URL:-http://localhost:3000}
-    ports:
-      - '3000:3000'
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -56,8 +56,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - '5434:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:

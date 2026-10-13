@@ -1,0 +1,25 @@
+# VPS: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Явные -f отключают docker-compose.override.yml, поэтому порты web и db на хост не публикуются.
+
+# Ротация логов: диск VPS не забивается (10 МБ × 3 файла на контейнер)
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+
+services:
+  migrate:
+    logging: *logging
+
+  web:
+    logging: *logging
+    environment:
+      # Публичный адрес с https:// — без него Auth.js строит неверные редиректы
+      AUTH_URL: ${AUTH_URL:?AUTH_URL не задан — укажи публичный адрес, например https://adpilot.example.com}
+
+  worker:
+    logging: *logging
+
+  db:
+    logging: *logging

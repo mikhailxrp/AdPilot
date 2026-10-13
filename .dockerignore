@@ -10,4 +10,4 @@ playwright-report
 !.env.example
 *.tsbuildinfo
 Dockerfile
-docker-compose.yml
+docker-compose*.yml

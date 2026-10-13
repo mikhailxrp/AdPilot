@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-10-13 (Phase 5, таск 1)
+
+**Сделано:** Phase 5, таск 1 «Прод-Compose: base / override / prod» ✅.
+
+- `docker-compose.yml`: `name: adpilot`, у `web` и `db` убраны `ports` — в базовом файле портов нет.
+- `docker-compose.override.yml` (новый): `3000:3000` и `5434:5432`, подхватывается автоматически — `docker compose up` для разработки работает как раньше.
+- `docker-compose.prod.yml` (новый): ротация логов `json-file` (10 МБ × 3) у `migrate`, `web`, `worker`, `db` через один `x-logging`; `AUTH_URL: ${AUTH_URL:?…}` у `web`. Запуск на VPS — с явными `-f`, override не подхватывается.
+- `.dockerignore`: `docker-compose*.yml`; `.env.example`: раздел «Прод (VPS)».
+- Проверено: prod-`config` без портов и с `logging`; без `AUTH_URL` падает с понятным текстом; `docker compose up --build` собрал образы, данные БД (volume `adpilot_db_data`) на месте; `type-check`, `lint`, `test` (523), `build`, `test:e2e` (37) зелёные.
+
+**Дальше:** Phase 5, таск 2 «Healthcheck и проверка env» (`/api/health`, `lib/validations/production-env.ts`, `scripts/check-env.ts`, `healthcheck` у web).
+
+**Заметки:**
+
+- `npm ci` в Docker падал: `package-lock.json` без `@emnapi/core` и `@emnapi/runtime` — локальный npm 11.6 считал lock целым, npm 11.19 из `node:24-alpine` — нет. Lock пересобран через `npm install --package-lock-only` внутри `node:24-alpine`; `package.json` не менялся. Вне scope таска, но без этого образы не собирались.
+- Порты нельзя «убрать в prod»: Compose при слиянии файлов `ports` только добавляет — поэтому порты вынесены в override.
+- Перед `test:e2e` остановлены контейнеры `web` и `worker` (порт 3000), иначе Playwright переиспользует сервер без `LLM_CLIENT=fake`; после прогона подняты обратно.
+- Локальный npm (11.6) и npm в образе (11.19) расходятся — при странных ошибках `npm ci` в Docker сначала сверять версии.
+
+---
+
 ## 2026-10-13 (Phase 4, таск 8)
 
 **Сделано:** Phase 4, таск 8 «E2E фазы и документация» ✅ — Phase 4 завершена.
