@@ -6,8 +6,11 @@ import { TICKS_PER_DAY } from '@/lib/simulator/model';
 import { sumTickStats } from '@/lib/simulator/stats';
 import type { CampaignSnapshot } from '@/lib/agent/types';
 
+/** Строка тика, достаточная для агрегации: `AdsReportRow` или `TickStats` из БД. */
+export type WindowRow = MetricsInput & { tick: number };
+
 /** Сумма строк одной кампании с тиком в `(currentTick − ticks, currentTick]`. */
-export function aggregateWindow(rows: readonly AdsReportRow[], currentTick: number, ticks: number): MetricsInput {
+export function aggregateWindow(rows: readonly WindowRow[], currentTick: number, ticks: number): MetricsInput {
 	const fromTick = currentTick - ticks;
 	return sumTickStats(rows.filter((row) => row.tick > fromTick && row.tick <= currentTick));
 }

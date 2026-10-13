@@ -7,7 +7,10 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
 		<div className="flex flex-1 flex-col">
 			<header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-3">
 				<span className="font-heading text-lg">AdPilot</span>
-				<AdminNav />
+				{/* usePathname на маршрутах с [id] известен только при запросе — без Suspense сборка падает */}
+				<Suspense fallback={null}>
+					<AdminNav />
+				</Suspense>
 				<Suspense fallback={null}>
 					<AdminHeader />
 				</Suspense>

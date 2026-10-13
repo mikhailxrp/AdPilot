@@ -58,3 +58,49 @@ test.describe('панель: кампании', () => {
 		await expect(badLink).toHaveAttribute('href', /^\/campaigns\/[^/]+$/);
 	});
 });
+
+test.describe('панель: страница кампании', () => {
+	test('гость на /campaigns/<id> уходит на /login', async ({ page }) => {
+		await page.goto('/campaigns/any-id');
+
+		await expect(page).toHaveURL(/\/login/);
+	});
+
+	test('админ видит сводку, тики и только журнал кампании; старая кампания — архив', async ({ page }) => {
+		await login(page);
+		await resetAndTick(page);
+
+		await page.goto('/campaigns');
+		await page.getByRole('link', { name: 'Плохая' }).click();
+		await expect(page).toHaveURL(/\/campaigns\/[^/]+$/);
+		const campaignUrl = page.url();
+
+		await expect(page.getByRole('heading', { level: 1, name: 'Плохая' })).toBeVisible();
+		const summary = page.getByRole('region', { name: 'Сводка кампании' });
+		await expect(summary.getByText(/^Тик 1 · seed /)).toBeVisible();
+		await expect(summary.getByText('архив')).toHaveCount(0);
+
+		await page.getByText('Данные по тикам').click();
+		await expect(page.getByRole('columnheader', { name: /^CPO за \d+ тиков$/ })).toBeVisible();
+
+		const journal = page.getByRole('region', { name: 'Журнал кампании' });
+		const journalRows = journal.getByRole('row');
+		// строка заголовка + хотя бы одно решение
+		await expect(journalRows.nth(1)).toBeVisible();
+		const campaignCells = await journalRows.locator('td:nth-child(2)').allTextContents();
+		expect(campaignCells.length).toBeGreaterThan(0);
+		expect(new Set(campaignCells)).toEqual(new Set(['Плохая']));
+
+		// Новый сброс архивирует прогон — сохранённая ссылка открывается с бейджем «архив»
+		await resetAndTick(page);
+		await page.goto(campaignUrl);
+		await expect(page.getByRole('region', { name: 'Сводка кампании' }).getByText('архив')).toBeVisible();
+	});
+
+	test('несуществующая кампания → «Кампания не найдена»', async ({ page }) => {
+		await login(page);
+		await page.goto('/campaigns/nonexistent');
+
+		await expect(page.getByRole('heading', { name: 'Кампания не найдена' })).toBeVisible();
+	});
+});

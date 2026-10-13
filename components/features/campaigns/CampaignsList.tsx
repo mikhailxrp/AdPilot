@@ -1,16 +1,12 @@
 import Link from 'next/link';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { STATE_LABELS } from '@/lib/campaigns/state-labels';
 import { formatPercent, formatRub } from '@/lib/metrics/format';
 import type { CampaignRow } from '@/lib/simulator/queries';
 
 interface CampaignsListProps {
 	campaigns: CampaignRow[];
 }
-
-const STATE_LABELS: Record<CampaignRow['state'], string> = {
-	ON: 'Включена',
-	SUSPENDED: 'Приостановлена',
-};
 
 const countFormatter = new Intl.NumberFormat('ru-RU');
 

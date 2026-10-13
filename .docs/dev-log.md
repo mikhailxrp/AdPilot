@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-10-13 (Phase 4, таск 2)
+
+**Сделано:** Phase 4, таск 2 «`/campaigns/[id]`: ряды по тикам и журнал кампании» ✅.
+
+- `buildCampaignSeries` (`lib/campaigns/series.ts`, чистая функция): точка на каждый тик `1..currentTick` — ставка, расход, CPO по окну `windowTicks`; пропущенный тик → `null`, в окне нет заказов → `null`. Окно — тот же `aggregateWindow` + `cpo`, что у агента.
+- `getCampaignDetail(id)` (`lib/campaigns/queries.ts`): любая кампания, в том числе архивного прогона; прогон, тики, итоги и метрики; `CampaignTruth` не выбирается.
+- `getCampaignJournal(campaignId)` в `journal-queries.ts`: последние `JOURNAL_PAGE_SIZE` записей кампании любого прогона; общий `select`, порядок и преобразование записи вынесены и используются `/journal` тоже.
+- Страница `app/(app)/campaigns/[id]/` (`page`, `loading`, `error`, `not-found`): `CampaignSummary` (состояние, бейдж «архив», «Тик N · seed S», 9 карточек), `<details>` «Данные по тикам» с `TickSeriesTable`, журнал кампании через существующий `JournalTable`; несуществующий id → «Кампания не найдена».
+- Попутно: `aggregateWindow` принимает `WindowRow` (`MetricsInput` + `tick`) — подходят строки `TickStats`; `STATE_LABELS` вынесены в `lib/campaigns/state-labels.ts`.
+- Тесты: `series.test.ts` (6), `CampaignSummary.test.tsx` (4), `TickSeriesTable.test.tsx` (2), `panel.spec.ts` (+3: гость → `/login`; «Плохая» — сводка, тики, только её журнал, после нового сброса — бейдж «архив»; несуществующий id).
+- `type-check`/`lint`/`test` (413)/`build` зелёные; `test:e2e` — 25/26, упал только `llm.spec` (см. заметки).
+
+**Дальше:** Phase 4, таск 3 «Графики на `/campaigns/[id]`».
+
+**Заметки:**
+
+- `next build` упал на `/campaigns/[id]`: с `cacheComponents` `usePathname` в `AdminNav` (layout) на маршруте с неизвестным `[id]` требует `<Suspense>`. `AdminNav` обёрнут в `<Suspense fallback={null}>` в `app/(app)/layout.tsx`, как `AdminHeader`. Любой будущий динамический маршрут под `(app)` без этого не собрался бы.
+- Окно CPO на странице — текущий `AgentConfig.windowTicks`, в том числе для архивного прогона: история окна не хранится.
+- `not-found` при `loading.tsx` отдаётся со статусом 200 (стриминг уже начался) — e2e проверяет текст, а не код ответа.
+- `llm.spec` снова упал из-за запущенного dev-сервера без `LLM_CLIENT=fake` (один тик настоящей модели). Перед e2e — останавливать `npm run dev`.
+
+---
+
 ## 2026-10-13 (Phase 4, таск 1)
 
 **Сделано:** Phase 4, таск 1 «Навигация + `/campaigns`» ✅. Phase 4 начата (🔄).

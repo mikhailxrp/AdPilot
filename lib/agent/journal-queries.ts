@@ -1,4 +1,4 @@
-// Чтение журнала для страницы /journal: решения активного прогона. Записи не меняются.
+// Чтение журнала: /journal — решения активного прогона, /campaigns/[id] — решения одной кампании. Записи не меняются.
 
 import { db } from '@/lib/db';
 import { RunStatus, type Prisma } from '@/generated/prisma/client';
@@ -35,9 +35,49 @@ export interface JournalPage {
 	pageCount: number;
 }
 
+export interface CampaignJournal {
+	rows: JournalRow[];
+	/** Всего записей кампании; в `rows` — не больше `JOURNAL_PAGE_SIZE`. */
+	total: number;
+}
+
 export interface JournalCampaign {
 	id: string;
 	name: string;
+}
+
+// Общие для всех запросов журнала поля и порядок: строки /journal и /campaigns/[id] не должны расходиться
+const JOURNAL_ROW_SELECT = {
+	id: true,
+	tick: true,
+	engine: true,
+	action: true,
+	before: true,
+	after: true,
+	reason: true,
+	verdict: true,
+	rejectReason: true,
+	dryRun: true,
+	applyError: true,
+	metrics: true,
+	rawResponse: true,
+	shadowAction: true,
+	shadowAfter: true,
+	shadowReason: true,
+	campaign: { select: { name: true } },
+} satisfies Prisma.DecisionSelect;
+
+const JOURNAL_ORDER_BY = [
+	{ createdAt: 'desc' },
+	{ id: 'desc' },
+] satisfies Prisma.DecisionOrderByWithRelationInput[];
+
+function toJournalRow({
+	campaign,
+	metrics,
+	...decision
+}: Prisma.DecisionGetPayload<{ select: typeof JOURNAL_ROW_SELECT }>): JournalRow {
+	return { ...decision, campaignName: campaign.name, metrics: parseDecisionMetrics(metrics) };
 }
 
 async function getActiveRunId(): Promise<string | null> {
@@ -74,40 +114,29 @@ export async function getJournalPage(filters: JournalFilters): Promise<JournalPa
 
 	const decisions = await db.decision.findMany({
 		where,
-		orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+		orderBy: JOURNAL_ORDER_BY,
 		skip: (page - 1) * JOURNAL_PAGE_SIZE,
 		take: JOURNAL_PAGE_SIZE,
-		select: {
-			id: true,
-			tick: true,
-			engine: true,
-			action: true,
-			before: true,
-			after: true,
-			reason: true,
-			verdict: true,
-			rejectReason: true,
-			dryRun: true,
-			applyError: true,
-			metrics: true,
-			rawResponse: true,
-			shadowAction: true,
-			shadowAfter: true,
-			shadowReason: true,
-			campaign: { select: { name: true } },
-		},
+		select: JOURNAL_ROW_SELECT,
 	});
 
-	return {
-		total,
-		page,
-		pageCount,
-		rows: decisions.map(({ campaign, metrics, ...decision }) => ({
-			...decision,
-			campaignName: campaign.name,
-			metrics: parseDecisionMetrics(metrics),
-		})),
-	};
+	return { total, page, pageCount, rows: decisions.map(toJournalRow) };
+}
+
+/** Последние записи журнала одной кампании (любого прогона), новые сверху. */
+export async function getCampaignJournal(campaignId: string): Promise<CampaignJournal> {
+	const where: Prisma.DecisionWhereInput = { campaignId };
+	const [total, decisions] = await Promise.all([
+		db.decision.count({ where }),
+		db.decision.findMany({
+			where,
+			orderBy: JOURNAL_ORDER_BY,
+			take: JOURNAL_PAGE_SIZE,
+			select: JOURNAL_ROW_SELECT,
+		}),
+	]);
+
+	return { total, rows: decisions.map(toJournalRow) };
 }
 
 /** Кампании активного прогона — для фильтра. */
