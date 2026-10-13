@@ -10,6 +10,9 @@ interface JournalTableProps {
 
 const NO_VALUE = '—';
 const countFormatter = new Intl.NumberFormat('ru-RU');
+const dateFormatter = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+/** Сколько символов sha256 показываем как номер версии. */
+const PROMPT_HASH_LENGTH = 8;
 
 function formatChange(before: number | null, after: number | null): string {
 	if (before === null && after === null) return NO_VALUE;
@@ -65,6 +68,17 @@ export function JournalTable({ rows }: JournalTableProps) {
 									<summary className="cursor-pointer text-sm">Ответ модели</summary>
 									<pre className="mt-2 max-h-60 overflow-auto rounded-md bg-muted p-2 text-xs break-all whitespace-pre-wrap">
 										{row.rawResponse}
+									</pre>
+								</details>
+							)}
+							{row.promptVersion && (
+								<details className="mt-1">
+									<summary className="cursor-pointer text-sm">
+										Версия промпта {row.promptVersion.sha256.slice(0, PROMPT_HASH_LENGTH)} ·{' '}
+										{dateFormatter.format(row.promptVersion.createdAt)}
+									</summary>
+									<pre className="mt-2 max-h-60 overflow-auto rounded-md bg-muted p-2 text-xs break-words whitespace-pre-wrap">
+										{row.promptVersion.text}
 									</pre>
 								</details>
 							)}

@@ -25,6 +25,15 @@ export interface JournalRow {
 	shadowAction: DecisionAction | null;
 	shadowAfter: number | null;
 	shadowReason: string | null;
+	/** Версия системного промпта, по которой решала модель; у `rules` и старых записей — `null`. */
+	promptVersion: JournalPromptVersion | null;
+}
+
+export interface JournalPromptVersion {
+	id: string;
+	sha256: string;
+	text: string;
+	createdAt: Date;
 }
 
 export interface JournalPage {
@@ -65,6 +74,7 @@ const JOURNAL_ROW_SELECT = {
 	shadowAfter: true,
 	shadowReason: true,
 	campaign: { select: { name: true } },
+	promptVersion: { select: { id: true, sha256: true, text: true, createdAt: true } },
 } satisfies Prisma.DecisionSelect;
 
 const JOURNAL_ORDER_BY = [

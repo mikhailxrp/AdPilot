@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-10-13 (Phase 4, таск 7)
+
+**Сделано:** Phase 4, таск 7 «LLM в `/settings`: модель, проверка, температура, промпт; версия в `/journal`» ✅.
+
+- `lib/validations/llm-settings.ts`: схема формы LLM поверх строк — URI `gpt://<каталог>/<модель>[/версия]`, температура 0–1 (запятая или точка), промпт не пустой и ≤ `LLM_PROMPT_MAX_LENGTH` (20 000). Пустые URI и температура → `null`; текст, равный встроенному промпту, → `null` (хранится «встроенный», а не его копия, поэтому правка `LLM_SYSTEM_PROMPT` в коде по-прежнему даёт новую версию). `checkModelSchema` — URI и температура без промпта.
+- `lib/llm/check-model.ts`: один короткий запрос без JSON-схемы → `{ ok, ms }` или `{ ok: false, code, message, ms }`; неизвестная ошибка → `code: 'unknown'`.
+- `lib/agent/config.ts`: `updateLlmSettings` (пишет только три поля LLM) и `resetLlmSystemPrompt` (промпт → `null`). `actions/settings.ts`: `updateLlmSettingsAction`, `resetPromptAction`, `checkModelAction` — Zod → `requireAdmin` → операция; проверка модели ничего не пишет ни в конфиг, ни в журнал, без ключей Yandex возвращает понятное сообщение.
+- `LlmSettingsForm` (Client Component, вторая форма на `/settings` со своим «Сохранить», shadcn `textarea` добавлен): «Проверить модель» идёт по значениям формы до сохранения, «Вернуть по умолчанию» сразу пишет `null`, у промпта предупреждение про `npm run eval:llm`.
+- Журнал: `promptVersion { id, sha256, text, createdAt }` в `JOURNAL_ROW_SELECT`; в `JournalTable` — «Версия промпта <sha256[:8]> · дата» и `<details>` с текстом (и `/journal`, и `/campaigns/[id]`). У `rules` и старых записей блока нет.
+- Тесты: `llm-settings.test.ts`, `check-model.test.ts`, `LlmSettingsForm.test.tsx`, `JournalTable.test.tsx` (+2). `type-check`/`lint`/`test` (523)/`build` зелёные; `settings.spec.ts` 4/4.
+- Миграции нет: поля добавлены в таске 6. `.docs/database.md` обновлён.
+
+**Дальше:** Phase 4, таск 8 «E2E фазы и документация».
+
+**Заметки:**
+
+- На странице две формы с кнопкой «Сохранить»: в `settings.spec.ts` кнопка ищется внутри формы с полем шага (`saveAgentForm`). В `llm.spec.ts` селектор ответа модели сужен до `details` «Ответ модели» — в строке появился второй `<pre>` с текстом промпта.
+- `llm.spec.ts` (тест на seed 42, 25 тиков) снова упал по той же причине, что в тасках 5–6: Playwright переиспользовал dev-сервер без `LLM_CLIENT=fake`. После правки селектора повторно не гонялся — перед `test:e2e` останавливать свой dev-сервер.
+- Текст версии промпта выбирается в каждую строку журнала (страница — до `JOURNAL_PAGE_SIZE` строк); если страница станет тяжёлой — ленивая подгрузка по клику.
+- Сквозной сценарий «правка промпта → тик → новая версия → сброс → другая версия» и «Проверить модель» на `fake` — таск 8.
+- Не проверено руками на dev-БД: что сохранение одной формы не затрагивает поля другой (покрыто только раздельной записью в `updateLlmSettings` / `updateAgentConfig`).
+
+---
+
 ## 2026-10-13 (Phase 4, таск 6)
 
 **Сделано:** Phase 4, таск 6 «Промпт и параметры LLM в БД, версия в `Decision`» ✅.

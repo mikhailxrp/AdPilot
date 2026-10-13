@@ -89,7 +89,7 @@ test.describe('Phase 3: движок llm в цикле агента и срав�
 		const firstRow = page.getByRole('row').nth(1);
 		await firstRow.getByText('Ответ модели').click();
 		await expect(
-			firstRow.locator('pre'),
+			firstRow.locator('details', { hasText: 'Ответ модели' }).locator('pre'),
 			`В ответе модели нет «${FAKE_MARKER}»: dev-сервер запущен без LLM_CLIENT=fake — останови его и перезапусти e2e`,
 		).toContainText(FAKE_MARKER);
 

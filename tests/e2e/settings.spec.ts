@@ -11,6 +11,14 @@ const INVALID_STEP = '51';
 // Тесты меняют общий конфиг агента — выполняем по очереди
 test.describe.configure({ mode: 'serial' });
 
+/** На странице две формы со своим «Сохранить»: основная — та, где есть поле шага. */
+async function saveAgentForm(page: Page): Promise<void> {
+	await page
+		.locator('form', { has: page.getByLabel(STEP_LABEL) })
+		.getByRole('button', { name: 'Сохранить' })
+		.click();
+}
+
 async function login(page: Page): Promise<void> {
 	await page.goto('/login');
 	await page.getByLabel('Email').fill(ADMIN_EMAIL);
@@ -52,7 +60,7 @@ test.describe('настройки агента', () => {
 		await page.goto('/settings');
 
 		await page.getByLabel(STEP_LABEL).fill(INVALID_STEP);
-		await page.getByRole('button', { name: 'Сохранить' }).click();
+		await saveAgentForm(page);
 
 		await expect(page.getByText('Целое число от 1 до 50')).toBeVisible();
 		await page.reload();
@@ -66,7 +74,7 @@ test.describe('настройки агента', () => {
 		await page.getByLabel(STEP_LABEL).fill(NEW_STEP);
 		await page.getByRole('switch', { name: 'Dry-run' }).click();
 		await page.getByRole('radiogroup', { name: 'Движок агента' }).getByRole('radio', { name: 'LLM' }).click();
-		await page.getByRole('button', { name: 'Сохранить' }).click();
+		await saveAgentForm(page);
 		await expect(page.getByRole('status').filter({ hasText: 'Сохранено' })).toBeVisible();
 
 		await page.reload();

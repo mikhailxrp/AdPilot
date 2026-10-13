@@ -21,6 +21,7 @@ const BASE_ROW: JournalRow = {
 	shadowAction: null,
 	shadowAfter: null,
 	shadowReason: null,
+	promptVersion: null,
 };
 
 const LLM_ROW: JournalRow = {
@@ -97,6 +98,25 @@ describe('JournalTable', () => {
 
 		expect(screen.getByText('Ответ модели')).toBeTruthy();
 		expect(screen.getByText(LLM_ROW.rawResponse ?? '')).toBeTruthy();
+	});
+
+	it('у записи с версией промпта — отпечаток, дата и текст', () => {
+		const promptVersion = {
+			id: 'pv1',
+			sha256: 'abcdef0123456789',
+			text: 'Ты — агент рекламных кампаний',
+			createdAt: new Date('2026-10-13T09:30:00'),
+		};
+		render(<JournalTable rows={[{ ...LLM_ROW, promptVersion }]} />);
+
+		expect(screen.getByText(/Версия промпта abcdef01/)).toBeTruthy();
+		expect(screen.getByText('Ты — агент рекламных кампаний')).toBeTruthy();
+	});
+
+	it('без версии промпта блока нет', () => {
+		render(<JournalTable rows={[BASE_ROW]} />);
+
+		expect(screen.queryByText(/Версия промпта/)).toBeNull();
 	});
 
 	it('кнопок «изменить» и «удалить» нет', () => {
