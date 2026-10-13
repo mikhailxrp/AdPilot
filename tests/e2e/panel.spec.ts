@@ -129,3 +129,40 @@ test.describe('панель: страница кампании', () => {
 		await expect(page.getByRole('heading', { name: 'Кампания не найдена' })).toBeVisible();
 	});
 });
+
+test.describe('панель: дашборд', () => {
+	test('админ видит итоги, CPO по кампаниям и последние решения', async ({ page }) => {
+		await login(page);
+		await resetAndTick(page);
+
+		await page.goto('/dashboard');
+		await expect(page.getByRole('heading', { level: 1, name: 'Дашборд' })).toBeVisible();
+		await expect(page.getByText(/^Тик 1 · seed /)).toBeVisible();
+
+		const totals = page.getByRole('region', { name: 'Итоги прогона' });
+		for (const label of ['Расход', 'Заказы', 'Средний CPO']) {
+			await expect(totals.getByText(label, { exact: true })).toBeVisible();
+		}
+		await expect(totals).not.toContainText(/NaN|∞/);
+
+		const cpo = page.getByRole('region', { name: 'CPO по кампаниям' });
+		// строка заголовка + кампании
+		await expect(cpo.getByRole('row')).toHaveCount(CAMPAIGNS_COUNT + 1);
+		await expect(cpo.getByRole('link', { name: 'Плохая' })).toHaveAttribute('href', /^\/campaigns\/[^/]+$/);
+
+		const decisions = page.getByRole('region', { name: 'Последние решения' });
+		await expect(decisions.getByRole('listitem').first()).toContainText('Тик 1');
+
+		await decisions.getByRole('link', { name: 'Весь журнал' }).click();
+		await expect(page).toHaveURL(/\/journal/);
+	});
+
+	test('0 тиков → CPO «нет данных», решений нет', async ({ page }) => {
+		await login(page);
+		await reset(page);
+
+		await page.goto('/dashboard');
+		await expect(page.getByRole('region', { name: 'Итоги прогона' }).getByText('нет данных')).toBeVisible();
+		await expect(page.getByRole('region', { name: 'Последние решения' }).getByText('Решений ещё нет.')).toBeVisible();
+	});
+});

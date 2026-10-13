@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-10-13 (Phase 4, таск 4)
+
+**Сделано:** Phase 4, таск 4 «`/dashboard`» ✅.
+
+- `buildDashboardSummary` (`lib/dashboard/summary.ts`, чистая функция): итоги прогона — расход, заказы, средний CPO = общий расход / общие заказы (взвешенный, не среднее CPO кампаний); по кампаниям — цель, допустимый CPO (`allowedCpo`), CPO за прогон и статус «в цели» / «в допуске» / «выше допуска» / «нет данных».
+- `getDashboardView()` (`lib/dashboard/queries.ts`): `getActiveRunView()` + последние `DASHBOARD_RECENT_DECISIONS` (10) решений прогона с `campaign { id, name }` для ссылки; нет прогона → `null`.
+- Страница `app/(app)/dashboard/` (`page`, `loading`, `error`): шапка «Тик N · seed S», `SummaryCards` (shadcn `card`), `CampaignCpoTable` (ссылки на `/campaigns/[id]`, `Badge` статуса), `RecentDecisions` (компактный список + «Весь журнал» → `/journal`); без прогона — ссылка на `/simulator`. `<Suspense>` вокруг заглушки заменён на `loading.tsx`.
+- `components/features/DashboardStub.tsx` удалён.
+- Тесты: `summary.test.ts` (9), `SummaryCards.test.tsx` (2), `CampaignCpoTable.test.tsx` (3), `RecentDecisions.test.tsx` (3), `panel.spec.ts` (+2: seed 42 → тик → итоги, 4 кампании, решения тика 1, переход в журнал; 0 тиков → «нет данных» и «Решений ещё нет»).
+- `type-check`/`lint`/`test` (436)/`build` зелёные; `panel.spec.ts` + `auth.spec.ts` — 11/11. Скриншоты 375px и 1280px — без горизонтального скролла страницы (таблица на 375px прокручивается внутри себя, как на `/campaigns`).
+
+**Дальше:** Phase 4, таск 5 «`/settings`: пороги, лимиты, dry-run, движок, таймер».
+
+**Заметки:**
+
+- Статус CPO сравнивается в целых числах (копейки × проценты), как в `decideByRules`: на границе допуска дашборд и агент не разойдутся из-за дробей.
+- CPO кампании на дашборде — за весь прогон (как колонка CPO на `/campaigns`), а не по окну агента; окно — на графике `/campaigns/[id]`. Поэтому колонка подписана «CPO за прогон».
+- Добавлена колонка «Допустимый CPO» (в плане не было) — без неё статус не объясним.
+- Тёмная тема включается классом `.dark`, а не `prefers-color-scheme` — скриншот с `colorScheme: 'dark'` вышел светлым; отдельно `.dark` и консоль браузера не проверялись. Цвета — только токены темы и варианты `Badge`.
+- Полный `test:e2e` не прогонялся — только `panel` и `auth`.
+
+---
+
 ## 2026-10-13 (Phase 4, таск 3)
 
 **Сделано:** Phase 4, таск 3 «Графики на `/campaigns/[id]`» ✅.
