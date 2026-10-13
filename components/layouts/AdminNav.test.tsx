@@ -38,6 +38,16 @@ describe('AdminNav', () => {
 		expect(screen.getByRole('link', { name: 'Дашборд' }).getAttribute('aria-current')).toBeNull();
 	});
 
+	it('показывает ссылку на настройки, активную на /settings', () => {
+		mockPathname.mockReturnValue('/settings');
+		render(<AdminNav />);
+
+		const link = screen.getByRole('link', { name: 'Настройки' });
+		expect(link.getAttribute('href')).toBe('/settings');
+		expect(link.getAttribute('aria-current')).toBe('page');
+		expect(screen.getByRole('link', { name: 'Симулятор' }).getAttribute('aria-current')).toBeNull();
+	});
+
 	it('на странице кампании активен раздел «Кампании»', () => {
 		mockPathname.mockReturnValue('/campaigns/abc');
 		render(<AdminNav />);

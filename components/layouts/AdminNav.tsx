@@ -9,6 +9,7 @@ const NAV_ITEMS = [
 	{ href: '/campaigns', label: 'Кампании' },
 	{ href: '/simulator', label: 'Симулятор' },
 	{ href: '/journal', label: 'Журнал' },
+	{ href: '/settings', label: 'Настройки' },
 ] as const;
 
 // Раздел активен и на вложенных страницах: /campaigns/[id] подсвечивает «Кампании»

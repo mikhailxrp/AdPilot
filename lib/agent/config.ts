@@ -10,3 +10,9 @@ export async function getAgentConfig(): Promise<AgentConfigInput> {
 	}
 	return agentConfigSchema.parse(row);
 }
+
+/** Перезаписывает весь конфиг; вход уже проверен схемой формы /settings. */
+export async function updateAgentConfig(input: AgentConfigInput): Promise<AgentConfigInput> {
+	const row = await db.agentConfig.update({ where: { id: AGENT_CONFIG_ID }, data: input });
+	return agentConfigSchema.parse(row);
+}

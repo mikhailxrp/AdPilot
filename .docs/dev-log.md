@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-10-13 (Phase 4, таск 5)
+
+**Сделано:** Phase 4, таск 5 «`/settings`: пороги, лимиты, dry-run, движок, таймер» ✅.
+
+- `agentConfigFormSchema` (`lib/validations/agent-config-form.ts`) поверх `AGENT_CONFIG_BOUNDS`: числа строками, лимит дневного бюджета — рубли (запятая или точка) → копейки; дефолтов нет — отсутствующее поле отклоняется, а не сбрасывается. Дробные копейки — ошибка «Не больше 2 знаков после запятой», не округление. `toAgentConfigFormValues` — копейки → рубли строкой без float.
+- `updateAgentConfig()` в `lib/agent/config.ts`; `actions/settings.ts` — `updateAgentConfigAction`: та же схема формы → `requireAdmin()` → запись → `revalidatePath` для `/settings`, `/simulator`, `/dashboard`, `/campaigns`, `/campaigns/[id]`.
+- Страница `app/(app)/settings/` (`page`, `loading`, `error`) и `AgentConfigForm` (Client Component: react-hook-form + shadcn `Field`, `Switch`, `RadioGroup`; группы «Режим», «Пороги решений», «Лимиты»; «Сохранено» через `role="status"`). Пункт «Настройки» в `AdminNav`.
+- Тесты: `agent-config-form.test.ts` (28), `AgentConfigForm.test.tsx` (5), `AdminNav.test.tsx` (+1), `settings.spec.ts` (4: гость → `/login`, ссылка в шапке, невалидный шаг, сохранение шага + dry-run + движка и проверка на `/simulator`; `afterAll` → `resetAgentConfig()`).
+- `type-check`/`lint`/`test` (470)/`build` зелёные; `test:e2e` — 32/33.
+
+**Дальше:** Phase 4, таск 6 «Промпт и параметры LLM в БД, версия в `Decision`».
+
+**Заметки:**
+
+- В action уходят сырые значения формы (`form.getValues()`), а не результат схемы: сервер проверяет ровно то, что ввёл пользователь, той же схемой. `agentConfigSchema` с дефолтами для этого не подходит.
+- Ошибка схемы в action возвращается общим сообщением формы, а не у поля: `ActionResult` без `fieldErrors`, у поля её показывает клиентская валидация.
+- `llm.spec.ts` упал не из-за таска: Playwright переиспользовал уже запущенный `npm run dev` без `LLM_CLIENT=fake`, и тест ушёл в настоящую модель (один платный запрос). Второй dev-сервер в той же папке Next не запускает (`E2E_PORT` не помогает) — перед `test:e2e` останавливать свой dev-сервер. Повторный прогон `llm.spec.ts` не делался.
+- `sonner` не ставился: «Сохранено» — строка в форме, как в `SimulatorControls`.
+- Переключатели таймера и движка на `/simulator` пишут в ту же строку конфига — побеждает последнее сохранение.
+- `ENGINE_LABELS` продублирован в `AgentConfigForm` (есть в `EngineToggle`) — `EngineToggle` вне scope таска.
+
+---
+
 ## 2026-10-13 (Phase 4, таск 4)
 
 **Сделано:** Phase 4, таск 4 «`/dashboard`» ✅.
