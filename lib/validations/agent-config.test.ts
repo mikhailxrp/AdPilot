@@ -21,6 +21,9 @@ describe('agentConfigSchema', () => {
 			cooldownTicks: 3,
 			cpoTolerancePct: 20,
 			windowTicks: 16,
+			llmSystemPrompt: null,
+			llmModelUri: null,
+			llmTemperature: null,
 		});
 	});
 
@@ -36,6 +39,34 @@ describe('agentConfigSchema', () => {
 
 	it.each(bounds)('%s: отклоняет дробное число', (field, { min }) => {
 		expect(agentConfigSchema.safeParse({ [field]: min + 0.5 }).success).toBe(false);
+	});
+
+	it.each([0, 0.2, 1])('температура %s принимается', (llmTemperature) => {
+		expect(agentConfigSchema.parse({ llmTemperature }).llmTemperature).toBe(llmTemperature);
+	});
+
+	it.each([-0.1, 1.1, '0.5', Number.NaN])('температура %s отклоняется', (llmTemperature) => {
+		expect(agentConfigSchema.safeParse({ llmTemperature }).success).toBe(false);
+	});
+
+	it.each(['', '   \n'])('пустой промпт %j отклоняется', (llmSystemPrompt) => {
+		expect(agentConfigSchema.safeParse({ llmSystemPrompt }).success).toBe(false);
+	});
+
+	it('строка БД с параметрами LLM разбирается без потерь; текст промпта не обрезается', () => {
+		const row = {
+			id: 'default',
+			createdAt: new Date(),
+			llmSystemPrompt: ' Свой промпт\n',
+			llmModelUri: 'gpt://b1gfolder/yandexgpt/latest',
+			llmTemperature: 0.5,
+		};
+
+		expect(agentConfigSchema.parse(row)).toMatchObject({
+			llmSystemPrompt: ' Свой промпт\n',
+			llmModelUri: 'gpt://b1gfolder/yandexgpt/latest',
+			llmTemperature: 0.5,
+		});
 	});
 
 	it('принимает движок LLM', () => {

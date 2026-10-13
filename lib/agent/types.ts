@@ -46,6 +46,8 @@ export type EngineDecision =
 /** Движок решений: `rules` или `llm`. */
 export interface AgentEngine {
 	name: AgentEngineName;
+	/** Системный промпт, по которому решает движок; у `rules` его нет. По нему считается версия в журнале. */
+	systemPrompt?: string;
 	decide(snapshot: CampaignSnapshot, config: RulesConfig): Promise<EngineDecision>;
 }
 
@@ -81,6 +83,8 @@ export interface JournalEntry {
 	shadowAction: DecisionAction | null;
 	shadowAfter: number | null;
 	shadowReason: string | null;
+	/** Версия системного промпта (`prompt_versions`); `null` у `rules`. */
+	promptVersionId: string | null;
 }
 
 /** Журнал решений: только дополняется, единственное изменение — `applyError`. */

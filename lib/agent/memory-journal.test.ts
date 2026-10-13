@@ -28,6 +28,7 @@ function entry(overrides: Partial<JournalEntry> = {}): JournalEntry {
 		shadowAction: null,
 		shadowAfter: null,
 		shadowReason: null,
+		promptVersionId: null,
 		...overrides,
 	};
 }

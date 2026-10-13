@@ -67,6 +67,20 @@ describe('YandexLLMClient — запрос', () => {
 		});
 	});
 
+	it('temperature из опции уходит в запрос', async () => {
+		const fetchMock = vi.fn<typeof fetch>(async () => completion('{}'));
+		const client = new YandexLLMClient({
+			apiKey: API_KEY,
+			folderId: FOLDER_ID,
+			modelUri: MODEL_URI,
+			temperature: 0.7,
+			fetch: fetchMock,
+		});
+		await client.complete(request);
+
+		expect(sentRequest(fetchMock).body).toMatchObject({ temperature: 0.7 });
+	});
+
 	it('режим json_object — response_format без схемы', async () => {
 		const { client, fetchMock } = setup(completion('{}'), 'json_object');
 		await client.complete(request);

@@ -2,16 +2,25 @@
 // Невалидный ответ и недоступная модель — отказ движка (значение), а не исключение; прочие ошибки — баги, пробрасываются.
 
 import { parseLlmDecision } from '@/lib/agent/engines/llm-parse';
-import { buildLlmPrompt } from '@/lib/agent/engines/llm-prompt';
+import { LLM_SYSTEM_PROMPT, buildLlmPrompt } from '@/lib/agent/engines/llm-prompt';
 import type { AgentEngine } from '@/lib/agent/types';
 import { LLMClientError, type LLMClient, type LLMResponse } from '@/lib/llm/types';
 import { LLM_DECISION_JSON_SCHEMA } from '@/lib/validations/llm-decision';
 
-export function createLlmEngine(client: LLMClient): AgentEngine {
+export interface LlmEngineOptions {
+	/** Системный промпт; по умолчанию встроенный. Он же пишется в журнал как версия. */
+	systemPrompt?: string;
+}
+
+export function createLlmEngine(
+	client: LLMClient,
+	{ systemPrompt = LLM_SYSTEM_PROMPT }: LlmEngineOptions = {},
+): AgentEngine {
 	return {
 		name: 'LLM',
+		systemPrompt,
 		decide: async (snapshot, config) => {
-			const { system, user } = buildLlmPrompt(snapshot, config);
+			const { system, user } = buildLlmPrompt(snapshot, config, systemPrompt);
 
 			let response: LLMResponse;
 			try {

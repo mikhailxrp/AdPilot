@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-10-13 (Phase 4, таск 6)
+
+**Сделано:** Phase 4, таск 6 «Промпт и параметры LLM в БД, версия в `Decision`» ✅.
+
+- Миграция `20261013085546_prompt_versions`: таблица `prompt_versions` (`text`, `sha256 @unique`, только дополняется); в `AgentConfig` — `llmSystemPrompt`, `llmModelUri`, `llmTemperature` (все nullable); в `Decision` — `promptVersionId` (FK, `RESTRICT`). Старые записи не тронуты.
+- `agentConfigSchema` = `agentConfigBaseSchema` (поля формы `/settings`) + три поля LLM (`null` по умолчанию, температура 0–1, пустой промпт отклоняется). Форма и `updateAgentConfig` работают с `AgentConfigBaseInput` — сохранение формы не затирает параметры LLM.
+- `lib/agent/prompt-versions.ts` (`resolveSystemPrompt`, `promptSha256`) и `prompt-versions-db.ts` (`ensurePromptVersion` — upsert по sha256).
+- Движок `llm` получает `systemPrompt` (по умолчанию встроенный) и отдаёт его полем `AgentEngine.systemPrompt`; версия считается по этому тексту. `tick.ts` делает upsert версии в `runCycle`, `cycle.ts` пишет `promptVersionId` во все решения тика; у `rules` — `null`. `TickDeps.createEngine(name)` → `createEngine(config)`.
+- Модель и температура: конфиг → env → константа (`createLLMClientFromEnv(env, { modelUri, temperature })`, опция `temperature` у `YandexLLMClient`). Fake-движок тоже берёт промпт из конфига.
+- Тесты: +20 (конфиг, версии, промпт, движок, клиент, цикл, `tick-core`); `type-check`/`lint`/`test` (490)/`build` зелёные. Руками на dev-БД: один текст → одна версия, другой текст → новая; у старых решений версии нет.
+- `journal.spec.ts` зелёный.
+
+**Дальше:** Phase 4, таск 7 «LLM в `/settings`: модель, проверка, температура, промпт; версия в `/journal`».
+
+**Заметки:**
+
+- `llm.spec.ts` не подтверждён: у запущенного dev-сервера нет `LLM_CLIENT=fake` (та же причина, что в таске 5) — тест упал и повторно не гонялся. Сквозной путь «тик `llm` → `promptVersionId` в БД» покрыт unit-тестами цикла и ручной проверкой `ensurePromptVersion`, но не e2e; полный e2e — таск 8. Перед `test:e2e` останавливать свой dev-сервер.
+- Первый прогон e2e упал и на `journal.spec.ts`: dev-сервер держал старый Prisma-клиент без `promptVersionId`. После перезапуска сервера — зелёный. После `prisma generate`/миграции dev-сервер надо перезапускать.
+- `ensurePromptVersion` вынесена из `prompt-versions.ts` в `prompt-versions-db.ts`: `lib/db.ts` бросает без `DATABASE_URL`, тесты чистых функций идут без БД.
+- Формат URI модели и максимальная длина промпта не проверяются — таск 7.
+- Случайно запущенный `prettier --write` переформатировал ~170 файлов (в проекте нет конфига prettier, форматирование ручное); лишнее откатили, изменения только по задаче.
+
+---
+
 ## 2026-10-13 (Phase 4, таск 5)
 
 **Сделано:** Phase 4, таск 5 «`/settings`: пороги, лимиты, dry-run, движок, таймер» ✅.

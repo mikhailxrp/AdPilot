@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { KOPECKS_PER_RUBLE, rubToKopecks } from '@/lib/metrics/money';
 import { formatRub } from '@/lib/metrics/format';
-import { AGENT_CONFIG_BOUNDS, AGENT_ENGINES, type AgentConfigInput } from '@/lib/validations/agent-config';
+import {
+	AGENT_CONFIG_BOUNDS,
+	AGENT_ENGINES,
+	type AgentConfigBaseInput,
+	type AgentConfigInput,
+} from '@/lib/validations/agent-config';
 
 // Форма /settings поверх agentConfigSchema: числа вводятся строками, лимит бюджета — в рублях.
 // Дефолтов нет: поле, которое не пришло, — ошибка, а не тихий сброс к значению по умолчанию.
@@ -54,7 +59,7 @@ export const agentConfigFormSchema = z.object({
 	cooldownTicks: intField(AGENT_CONFIG_BOUNDS.cooldownTicks),
 	cpoTolerancePct: intField(AGENT_CONFIG_BOUNDS.cpoTolerancePct),
 	windowTicks: intField(AGENT_CONFIG_BOUNDS.windowTicks),
-}) satisfies z.ZodType<AgentConfigInput, unknown>;
+}) satisfies z.ZodType<AgentConfigBaseInput, unknown>;
 
 /** Значения формы: числа — строки, лимит бюджета — рубли. */
 export type AgentConfigFormValues = z.input<typeof agentConfigFormSchema>;

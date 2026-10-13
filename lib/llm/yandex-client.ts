@@ -27,6 +27,8 @@ export interface YandexLLMClientOptions {
 	/** URI модели, например `gpt://<folder_ID>/yandexgpt/latest`. */
 	modelUri: string;
 	responseFormat?: LLMResponseFormat;
+	/** Температура; по умолчанию `LLM_TEMPERATURE`. */
+	temperature?: number;
 	baseUrl?: string;
 	fetch?: typeof fetch;
 	timeoutMs?: number;
@@ -57,6 +59,7 @@ export class YandexLLMClient implements LLMClient {
 	private readonly folderId: string;
 	private readonly modelUri: string;
 	private readonly responseFormat: LLMResponseFormat;
+	private readonly temperature: number;
 	private readonly baseUrl: string;
 	private readonly fetchFn: typeof fetch;
 	private readonly timeoutMs: number;
@@ -66,6 +69,7 @@ export class YandexLLMClient implements LLMClient {
 		folderId,
 		modelUri,
 		responseFormat = 'json_schema',
+		temperature = LLM_TEMPERATURE,
 		baseUrl = YANDEX_LLM_BASE_URL,
 		fetch: fetchFn = globalThis.fetch,
 		timeoutMs = LLM_TIMEOUT_MS,
@@ -74,6 +78,7 @@ export class YandexLLMClient implements LLMClient {
 		this.folderId = folderId;
 		this.modelUri = modelUri;
 		this.responseFormat = responseFormat;
+		this.temperature = temperature;
 		this.baseUrl = baseUrl.replace(/\/+$/, '');
 		this.fetchFn = fetchFn;
 		this.timeoutMs = timeoutMs;
@@ -102,7 +107,7 @@ export class YandexLLMClient implements LLMClient {
 	private buildBody({ system, user, jsonSchema }: LLMRequest): Record<string, unknown> {
 		const body: Record<string, unknown> = {
 			model: this.modelUri,
-			temperature: LLM_TEMPERATURE,
+			temperature: this.temperature,
 			max_tokens: LLM_MAX_TOKENS,
 			messages: [
 				{ role: 'system', content: system },

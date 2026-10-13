@@ -33,9 +33,9 @@ function makeDeps(overrides: Partial<TickDeps> = {}, config: AgentConfigInput = 
 			calls.push('world');
 			return { tick: TICK };
 		}),
-		createEngine: vi.fn((name) => {
+		createEngine: vi.fn((engineConfig) => {
 			calls.push('engine');
-			return name === 'LLM' ? LLM_ENGINE : RULES_ENGINE;
+			return engineConfig.engine === 'LLM' ? LLM_ENGINE : RULES_ENGINE;
 		}),
 		runCycle: vi.fn(async () => {
 			calls.push('cycle');
@@ -54,7 +54,7 @@ describe('runTickWith', () => {
 
 		expect(outcome).toEqual({ status: 'done', tick: TICK, cycle: CYCLE, cycleError: null });
 		expect(calls).toEqual(['lock', 'config', 'engine', 'world', 'cycle']);
-		expect(deps.createEngine).toHaveBeenCalledWith('RULES');
+		expect(deps.createEngine).toHaveBeenCalledWith(agentConfigSchema.parse({}));
 		expect(deps.runCycle).toHaveBeenCalledWith({
 			config: agentConfigSchema.parse({}),
 			runId: RUN_ID,
@@ -99,7 +99,7 @@ describe('runTickWith', () => {
 
 		await runTickWith(deps);
 
-		expect(deps.createEngine).toHaveBeenCalledWith('LLM');
+		expect(deps.createEngine).toHaveBeenCalledWith(config);
 		expect(deps.runCycle).toHaveBeenCalledWith({ config, runId: RUN_ID, engine: LLM_ENGINE });
 	});
 

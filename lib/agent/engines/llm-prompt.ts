@@ -124,7 +124,12 @@ export function comparisonLines(snapshot: CampaignSnapshot, config: RulesConfig)
 	return [clicks, ...cpo, budget];
 }
 
-export function buildLlmPrompt(snapshot: CampaignSnapshot, config: RulesConfig): LlmPrompt {
+/** `systemPrompt` — текст из конфига; по умолчанию встроенный. */
+export function buildLlmPrompt(
+	snapshot: CampaignSnapshot,
+	config: RulesConfig,
+	systemPrompt: string = LLM_SYSTEM_PROMPT,
+): LlmPrompt {
 	const { campaign, currentTick, window, metrics, daySpend } = snapshot;
 	const { minClicks, maxStepPct, maxDailyBudget, cooldownTicks, cpoTolerancePct, windowTicks } = config;
 	const allowedCpo = (campaign.targetCpo * (PERCENT + cpoTolerancePct)) / PERCENT;
@@ -153,5 +158,5 @@ export function buildLlmPrompt(snapshot: CampaignSnapshot, config: RulesConfig):
 		...boundsLines(valueBounds(snapshot, config)),
 	].join('\n');
 
-	return { system: LLM_SYSTEM_PROMPT, user };
+	return { system: systemPrompt, user };
 }

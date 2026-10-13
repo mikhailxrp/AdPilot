@@ -54,6 +54,11 @@ describe('buildLlmPrompt', () => {
 		expect(system).toContain('"value"');
 	});
 
+	it('переданный текст попадает в system вместо встроенного', () => {
+		const { system } = buildLlmPrompt(snapshot(), CONFIG, 'Свой промпт');
+		expect(system).toBe('Свой промпт');
+	});
+
 	it('кампания, цель и лимиты — в рублях', () => {
 		const { user } = buildLlmPrompt(snapshot(), CONFIG);
 		expect(user).toContain('Ставка за клик: 20.00 руб.');

@@ -32,6 +32,8 @@ export interface CycleParams {
 	shadowEngine: AgentEngine | null;
 	config: CycleConfig;
 	runId: string;
+	/** Версия системного промпта основного движка; без неё (`rules`) — `null`. */
+	promptVersionId?: string | null;
 }
 
 export interface CycleDecision {
@@ -115,6 +117,7 @@ export async function runAgentCycle({
 	shadowEngine,
 	config,
 	runId,
+	promptVersionId = null,
 }: CycleParams): Promise<CycleResult> {
 	const [campaigns, report] = await Promise.all([provider.listCampaigns(), provider.getReport()]);
 	const { currentTick } = report;
@@ -166,6 +169,7 @@ export async function runAgentCycle({
 				shadowAction: shadow?.action ?? null,
 				shadowAfter: shadow?.after ?? null,
 				shadowReason: shadow?.reason ?? null,
+				promptVersionId,
 			};
 
 			const { id } = await journal.record(entry);

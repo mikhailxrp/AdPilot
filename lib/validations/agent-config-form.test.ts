@@ -5,7 +5,12 @@ import {
 	toAgentConfigFormValues,
 	type AgentConfigFormValues,
 } from '@/lib/validations/agent-config-form';
-import { AGENT_CONFIG_BOUNDS, agentConfigSchema, type AgentConfigInput } from '@/lib/validations/agent-config';
+import {
+	AGENT_CONFIG_BOUNDS,
+	agentConfigBaseSchema,
+	agentConfigSchema,
+	type AgentConfigInput,
+} from '@/lib/validations/agent-config';
 
 const VALID_VALUES: AgentConfigFormValues = {
 	engine: 'LLM',
@@ -117,6 +122,17 @@ describe('toAgentConfigFormValues', () => {
 		['дефолты', agentConfigSchema.parse({})],
 		['копейки и границы', { ...agentConfigSchema.parse({}), maxDailyBudget: 1_234_507, maxStepPct: 50, cooldownTicks: 0 }],
 	])('%s: конфиг → форма → схема без потерь', (_name, config) => {
-		expect(agentConfigFormSchema.parse(toAgentConfigFormValues(config))).toEqual(config);
+		expect(agentConfigFormSchema.parse(toAgentConfigFormValues(config))).toEqual(agentConfigBaseSchema.parse(config));
+	});
+
+	it('форма не отдаёт параметры LLM — updateAgentConfig их не затрёт', () => {
+		const config = {
+			...agentConfigSchema.parse({}),
+			llmSystemPrompt: 'Свой',
+			llmModelUri: 'gpt://f/m',
+			llmTemperature: 0.5,
+		};
+
+		expect(Object.keys(agentConfigFormSchema.parse(toAgentConfigFormValues(config)))).not.toContain('llmSystemPrompt');
 	});
 });

@@ -26,12 +26,16 @@ export const AGENT_CONFIG_BOUNDS = {
 	windowTicks: { min: 1, max: 168, default: 16 },
 } as const satisfies Record<string, IntBounds>;
 
+/** Температура модели: 0 — детерминированно, 1 — максимум разнообразия. */
+export const LLM_TEMPERATURE_BOUNDS = { min: 0, max: 1 } as const;
+
 function boundedInt({ min, max, default: fallback }: IntBounds) {
 	const message = `Целое число от ${min} до ${max}`;
 	return z.int(message).min(min, message).max(max, message).default(fallback);
 }
 
-export const agentConfigSchema = z.object({
+/** Конфиг без параметров LLM — то, что редактирует форма /settings (таск 5). */
+export const agentConfigBaseSchema = z.object({
 	engine: z.enum(AGENT_ENGINES).default('RULES'),
 	dryRun: z.boolean().default(false),
 	timerEnabled: z.boolean().default(false),
@@ -42,6 +46,29 @@ export const agentConfigSchema = z.object({
 	cooldownTicks: boundedInt(AGENT_CONFIG_BOUNDS.cooldownTicks),
 	cpoTolerancePct: boundedInt(AGENT_CONFIG_BOUNDS.cpoTolerancePct),
 	windowTicks: boundedInt(AGENT_CONFIG_BOUNDS.windowTicks),
+});
+
+export type AgentConfigBaseInput = z.infer<typeof agentConfigBaseSchema>;
+
+const temperatureMessage = `Число от ${LLM_TEMPERATURE_BOUNDS.min} до ${LLM_TEMPERATURE_BOUNDS.max}`;
+
+/**
+ * Параметры LLM: `null` — «по умолчанию» (встроенный промпт; модель и температура из env / констант).
+ * Текст промпта хранится как есть, без trim: пустой или пробельный отклоняется, «по умолчанию» — это `null`.
+ */
+export const agentConfigSchema = agentConfigBaseSchema.extend({
+	llmSystemPrompt: z
+		.string()
+		.refine((text) => text.trim().length > 0, 'Промпт не может быть пустым')
+		.nullable()
+		.default(null),
+	llmModelUri: z.string().nullable().default(null),
+	llmTemperature: z
+		.number(temperatureMessage)
+		.min(LLM_TEMPERATURE_BOUNDS.min, temperatureMessage)
+		.max(LLM_TEMPERATURE_BOUNDS.max, temperatureMessage)
+		.nullable()
+		.default(null),
 });
 
 export type AgentConfigInput = z.infer<typeof agentConfigSchema>;

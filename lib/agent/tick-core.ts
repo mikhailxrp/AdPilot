@@ -18,7 +18,7 @@ export interface TickDeps {
 	getActiveRunId(): Promise<string | null>;
 	runWorldTick(): Promise<{ tick: number }>;
 	/** Бросает, если движок не настроен (например, нет ключа LLM). */
-	createEngine(name: AgentEngineName): AgentEngine;
+	createEngine(config: AgentConfigInput): AgentEngine;
 	runCycle(params: { config: CycleConfig; runId: string; engine: AgentEngine }): Promise<CycleResult>;
 }
 
@@ -43,7 +43,7 @@ export async function runTickWith(deps: TickDeps): Promise<TickOutcome> {
 		if (!runId) throw new TickError(NO_ACTIVE_RUN_MESSAGE);
 		let engine: AgentEngine;
 		try {
-			engine = deps.createEngine(config.engine);
+			engine = deps.createEngine(config);
 		} catch (error) {
 			throw new TickError(engineSetupMessage(config.engine, error), { cause: error });
 		}

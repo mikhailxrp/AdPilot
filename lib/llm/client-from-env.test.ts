@@ -1,23 +1,36 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { createLLMClientFromEnv, defaultModelUri, FAKE_HOLD_ANSWER, llmClientKindFromEnv } from '@/lib/llm/client-from-env';
+import {
+	createLLMClientFromEnv,
+	defaultModelUri,
+	FAKE_HOLD_ANSWER,
+	llmClientKindFromEnv,
+	type LLMClientOverrides,
+} from '@/lib/llm/client-from-env';
 import { FakeLLMClient } from '@/lib/llm/fake-client';
-import { YandexLLMClient } from '@/lib/llm/yandex-client';
+import { LLM_TEMPERATURE, YandexLLMClient } from '@/lib/llm/yandex-client';
 
 const yandexEnv = { YANDEX_API_KEY: 'key', YANDEX_FOLDER_ID: 'b1gfolder' };
 
-async function sentModel(env: Record<string, string | undefined>): Promise<unknown> {
+async function sentBody(
+	env: Record<string, string | undefined>,
+	overrides?: LLMClientOverrides,
+): Promise<Record<string, unknown>> {
 	const fetchMock = vi
 		.spyOn(globalThis, 'fetch')
 		.mockResolvedValue(Response.json({ choices: [{ message: { content: '{}' } }] }));
 	try {
-		await createLLMClientFromEnv(env).complete({ system: 's', user: 'u' });
+		await createLLMClientFromEnv(env, overrides).complete({ system: 's', user: 'u' });
 		const init = fetchMock.mock.calls[0]?.[1];
 		const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
-		return body && typeof body === 'object' && 'model' in body ? body.model : undefined;
+		return body && typeof body === 'object' ? { ...body } : {};
 	} finally {
 		fetchMock.mockRestore();
 	}
+}
+
+async function sentModel(env: Record<string, string | undefined>, overrides?: LLMClientOverrides): Promise<unknown> {
+	return (await sentBody(env, overrides)).model;
 }
 
 describe('llmClientKindFromEnv', () => {
@@ -49,6 +62,21 @@ describe('createLLMClientFromEnv', () => {
 
 	it('неизвестный LLM_CLIENT — ошибка', () => {
 		expect(() => createLLMClientFromEnv({ ...yandexEnv, LLM_CLIENT: 'openai' })).toThrow(/LLM_CLIENT должен быть yandex или fake/);
+	});
+
+	it('модель и температура из конфига важнее env; null и пусто → env, затем значения по умолчанию', async () => {
+		const env = { ...yandexEnv, LLM_MODEL_URI: 'gpt://b1gfolder/yandexgpt-lite/latest' };
+
+		await expect(sentModel(env, { modelUri: 'gpt://b1gfolder/custom/latest' })).resolves.toBe(
+			'gpt://b1gfolder/custom/latest',
+		);
+		await expect(sentModel(env, { modelUri: null })).resolves.toBe('gpt://b1gfolder/yandexgpt-lite/latest');
+		await expect(sentModel(env, { modelUri: '' })).resolves.toBe('gpt://b1gfolder/yandexgpt-lite/latest');
+		await expect(sentModel(yandexEnv, { modelUri: null })).resolves.toBe(defaultModelUri('b1gfolder'));
+
+		expect((await sentBody(yandexEnv, { temperature: 0.7 })).temperature).toBe(0.7);
+		expect((await sentBody(yandexEnv, { temperature: 0 })).temperature).toBe(0);
+		expect((await sentBody(yandexEnv, { temperature: null })).temperature).toBe(LLM_TEMPERATURE);
 	});
 
 	it('URI модели по умолчанию собирается из каталога, заданный — берётся как есть', async () => {

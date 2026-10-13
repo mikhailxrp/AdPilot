@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
-import { AGENT_ENGINES, type AgentConfigInput } from '@/lib/validations/agent-config';
+import { AGENT_ENGINES, type AgentConfigBaseInput, type AgentConfigInput } from '@/lib/validations/agent-config';
 import {
 	agentConfigFormSchema,
 	toAgentConfigFormValues,
@@ -79,7 +79,7 @@ export function AgentConfigForm({ config }: AgentConfigFormProps) {
 	const [status, setStatus] = useState<'saved' | null>(null);
 	const [serverError, setServerError] = useState<string | null>(null);
 
-	const form = useForm<AgentConfigFormValues, unknown, AgentConfigInput>({
+	const form = useForm<AgentConfigFormValues, unknown, AgentConfigBaseInput>({
 		resolver: zodResolver(agentConfigFormSchema),
 		defaultValues: toAgentConfigFormValues(config),
 	});

@@ -1,7 +1,8 @@
 // Fake-движок `llm` для `LLM_CLIENT=fake` (e2e): «модель» отвечает решением `rules` на том же снимке, детерминированно.
 // Ответ идёт через настоящий `createLlmEngine` — промпт, разбор Zod, рубли → копейки, — чтобы e2e проверял весь путь.
 
-import { createLlmEngine } from '@/lib/agent/engines/llm';
+import { createLlmEngine, type LlmEngineOptions } from '@/lib/agent/engines/llm';
+import { LLM_SYSTEM_PROMPT } from '@/lib/agent/engines/llm-prompt';
 import { decideByRules } from '@/lib/agent/engines/rules';
 import type { AgentEngine, Proposal } from '@/lib/agent/types';
 import { FakeLLMClient } from '@/lib/llm/fake-client';
@@ -21,12 +22,13 @@ export function toLlmAnswer(proposal: Proposal): string {
 	return JSON.stringify(answer);
 }
 
-export function createFakeLlmEngine(): AgentEngine {
+export function createFakeLlmEngine({ systemPrompt = LLM_SYSTEM_PROMPT }: LlmEngineOptions = {}): AgentEngine {
 	return {
 		name: 'LLM',
+		systemPrompt,
 		decide: (snapshot, config) => {
 			const answer = toLlmAnswer(decideByRules(snapshot, config));
-			return createLlmEngine(new FakeLLMClient(() => answer)).decide(snapshot, config);
+			return createLlmEngine(new FakeLLMClient(() => answer), { systemPrompt }).decide(snapshot, config);
 		},
 	};
 }

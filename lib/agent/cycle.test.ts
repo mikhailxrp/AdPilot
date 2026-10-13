@@ -118,6 +118,7 @@ function priorChange(campaignId: string, tick: number): JournalEntry {
 		shadowAction: null,
 		shadowAfter: null,
 		shadowReason: null,
+		promptVersionId: null,
 	};
 }
 
@@ -339,6 +340,30 @@ describe('runAgentCycle с движком llm', () => {
 		});
 		expect(journal.entries[0]?.shadowReason).toEqual(expect.any(String));
 		expect((await campaignOf(provider, 'bad')).bid).toBe(2_000);
+	});
+
+	it('promptVersionId из параметров попадает в каждую запись; без него — null', async () => {
+		const { journal, run } = setup();
+		await run();
+		expect(journal.entries.map((entry) => entry.promptVersionId)).toEqual([null, null, null, null]);
+
+		const provider = new MemoryProvider({
+			campaigns: [campaign('bad'), campaign('good')],
+			rows: [...badRows(), ...GOOD_ROWS],
+			currentTick: TICK,
+		});
+		const versioned = new MemoryJournal();
+		const engine = createLlmEngine(new FakeLLMClient(() => answer('HOLD', null)));
+		await runAgentCycle({
+			provider,
+			journal: versioned,
+			engine,
+			shadowEngine: null,
+			config: CONFIG,
+			runId: RUN_ID,
+			promptVersionId: 'pv1',
+		});
+		expect(versioned.entries.map((entry) => entry.promptVersionId)).toEqual(['pv1', 'pv1']);
 	});
 
 	it('теневой движок упал → основное решение записано и применено, теневые поля пустые', async () => {

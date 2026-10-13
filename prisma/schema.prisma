@@ -132,6 +132,9 @@ model AgentConfig {
   cooldownTicks   Int         @map("cooldown_ticks")
   cpoTolerancePct Int         @map("cpo_tolerance_pct")
   windowTicks     Int         @map("window_ticks")
+  llmSystemPrompt String?     @map("llm_system_prompt")
+  llmModelUri     String?     @map("llm_model_uri")
+  llmTemperature  Float?      @map("llm_temperature")
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
 
@@ -139,29 +142,42 @@ model AgentConfig {
 }
 
 model Decision {
-  id           String          @id @default(cuid())
-  runId        String          @map("run_id")
-  run          SimulationRun   @relation(fields: [runId], references: [id], onDelete: Restrict)
-  campaignId   String          @map("campaign_id")
-  campaign     Campaign        @relation(fields: [campaignId], references: [id], onDelete: Restrict)
-  tick         Int
-  engine       AgentEngine
-  action       DecisionAction
-  before       Int?
-  after        Int?
-  reason       String
-  metrics      Json
-  dryRun       Boolean         @map("dry_run")
-  verdict      DecisionVerdict
-  rejectReason String?         @map("reject_reason")
-  rawResponse  String?         @map("raw_response")
-  applyError   String?         @map("apply_error")
-  shadowAction DecisionAction? @map("shadow_action")
-  shadowAfter  Int?            @map("shadow_after")
-  shadowReason String?         @map("shadow_reason")
-  createdAt    DateTime        @default(now()) @map("created_at")
+  id              String          @id @default(cuid())
+  runId           String          @map("run_id")
+  run             SimulationRun   @relation(fields: [runId], references: [id], onDelete: Restrict)
+  campaignId      String          @map("campaign_id")
+  campaign        Campaign        @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  tick            Int
+  engine          AgentEngine
+  action          DecisionAction
+  before          Int?
+  after           Int?
+  reason          String
+  metrics         Json
+  dryRun          Boolean         @map("dry_run")
+  verdict         DecisionVerdict
+  rejectReason    String?         @map("reject_reason")
+  rawResponse     String?         @map("raw_response")
+  applyError      String?         @map("apply_error")
+  shadowAction    DecisionAction? @map("shadow_action")
+  shadowAfter     Int?            @map("shadow_after")
+  shadowReason    String?         @map("shadow_reason")
+  promptVersionId String?         @map("prompt_version_id")
+  promptVersion   PromptVersion?  @relation(fields: [promptVersionId], references: [id], onDelete: Restrict)
+  createdAt       DateTime        @default(now()) @map("created_at")
 
   @@index([runId, tick])
   @@index([campaignId])
+  @@index([promptVersionId])
   @@map("decisions")
+}
+
+model PromptVersion {
+  id        String     @id @default(cuid())
+  text      String
+  sha256    String     @unique
+  decisions Decision[]
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@map("prompt_versions")
 }

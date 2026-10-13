@@ -37,7 +37,16 @@ export function llmClientKindFromEnv(env: Record<string, string | undefined> = p
 	return kind.data;
 }
 
-export function createLLMClientFromEnv(env: Record<string, string | undefined> = process.env): LLMClient {
+/** Параметры из `AgentConfig`: важнее env и констант; `null` / пусто — «по умолчанию». */
+export interface LLMClientOverrides {
+	modelUri?: string | null;
+	temperature?: number | null;
+}
+
+export function createLLMClientFromEnv(
+	env: Record<string, string | undefined> = process.env,
+	{ modelUri, temperature }: LLMClientOverrides = {},
+): LLMClient {
 	if (llmClientKindFromEnv(env) === 'fake') return new FakeLLMClient(() => FAKE_HOLD_ANSWER);
 
 	const parsed = yandexEnvSchema.safeParse(env);
@@ -46,6 +55,7 @@ export function createLLMClientFromEnv(env: Record<string, string | undefined> =
 	return new YandexLLMClient({
 		apiKey: YANDEX_API_KEY,
 		folderId: YANDEX_FOLDER_ID,
-		modelUri: LLM_MODEL_URI || defaultModelUri(YANDEX_FOLDER_ID),
+		modelUri: modelUri || LLM_MODEL_URI || defaultModelUri(YANDEX_FOLDER_ID),
+		temperature: temperature ?? undefined,
 	});
 }

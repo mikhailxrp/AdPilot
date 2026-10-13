@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { createLlmEngine } from '@/lib/agent/engines/llm';
-import { buildLlmPrompt } from '@/lib/agent/engines/llm-prompt';
+import { LLM_SYSTEM_PROMPT, buildLlmPrompt } from '@/lib/agent/engines/llm-prompt';
 import type { CampaignSnapshot, RulesConfig } from '@/lib/agent/types';
 import { FakeLLMClient } from '@/lib/llm/fake-client';
 import { LLMClientError } from '@/lib/llm/types';
@@ -39,6 +39,16 @@ describe('createLlmEngine', () => {
 		await createLlmEngine(client).decide(SNAPSHOT, CONFIG);
 
 		expect(client.requests).toEqual([{ ...buildLlmPrompt(SNAPSHOT, CONFIG), jsonSchema: LLM_DECISION_JSON_SCHEMA }]);
+	});
+
+	it('свой systemPrompt уходит в модель и отдаётся движком; по умолчанию — встроенный', async () => {
+		const client = new FakeLLMClient(() => LOWER_BID_ANSWER);
+		const engine = createLlmEngine(client, { systemPrompt: 'Свой промпт' });
+		await engine.decide(SNAPSHOT, CONFIG);
+
+		expect(engine.systemPrompt).toBe('Свой промпт');
+		expect(client.requests[0]?.system).toBe('Свой промпт');
+		expect(createLlmEngine(client).systemPrompt).toBe(LLM_SYSTEM_PROMPT);
 	});
 
 	it('валидный ответ → предложение в копейках и сырой ответ', async () => {
