@@ -108,7 +108,7 @@ test.describe('Phase 3: движок llm в цикле агента и срав�
 		await row.getByText('Показать').click();
 		await expect(row.getByText('CPO', { exact: true })).toBeVisible();
 		await row.getByText('Ответ модели').click();
-		await expect(row.locator('pre')).toContainText('"action"');
+		await expect(row.locator('details', { hasText: 'Ответ модели' }).locator('pre')).toContainText('"action"');
 		await expect(row.getByRole('cell').nth(SHADOW_CELL_INDEX)).not.toHaveText(NO_VALUE);
 
 		// «Плохая»: движок llm принял снижение ставки или паузу

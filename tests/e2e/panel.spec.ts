@@ -4,6 +4,8 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? '';
 const SEED = '42';
 const CAMPAIGNS_COUNT = 4;
+const SCENARIO_TICKS = 20;
+const SCENARIO_TIMEOUT_MS = 240_000;
 
 // Тесты меняют общий активный прогон — выполняем по очереди
 test.describe.configure({ mode: 'serial' });
@@ -28,6 +30,13 @@ async function resetAndTick(page: Page): Promise<void> {
 	await reset(page);
 	await page.getByRole('button', { name: 'Один тик' }).click();
 	await expect(page.getByText(/^Тик 1 · seed /)).toBeVisible();
+}
+
+async function runTicks(page: Page, count: number): Promise<void> {
+	for (let tick = 1; tick <= count; tick += 1) {
+		await page.getByRole('button', { name: 'Один тик' }).click();
+		await expect(page.getByText(new RegExp(`^Тик ${tick} · seed `))).toBeVisible();
+	}
 }
 
 test.describe('панель: кампании', () => {
@@ -164,5 +173,35 @@ test.describe('панель: дашборд', () => {
 		await page.goto('/dashboard');
 		await expect(page.getByRole('region', { name: 'Итоги прогона' }).getByText('нет данных')).toBeVisible();
 		await expect(page.getByRole('region', { name: 'Последние решения' }).getByText('Решений ещё нет.')).toBeVisible();
+	});
+});
+
+test.describe('Phase 4: сквозной сценарий панели', () => {
+	test(`после ${SCENARIO_TICKS} тиков дашборд, кампании, графики и журнал «Плохой» согласованы`, async ({ page }) => {
+		test.setTimeout(SCENARIO_TIMEOUT_MS);
+		await login(page);
+		await reset(page);
+		await runTicks(page, SCENARIO_TICKS);
+
+		await page.goto('/dashboard');
+		const totals = page.getByRole('region', { name: 'Итоги прогона' });
+		await expect(totals).not.toContainText(/NaN|∞|нет данных/);
+		const decisions = page.getByRole('region', { name: 'Последние решения' });
+		await expect(decisions.getByRole('listitem').first()).toContainText(`Тик ${SCENARIO_TICKS}`);
+
+		await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'Кампании' }).click();
+		await expect(page).toHaveURL(/\/campaigns$/);
+		await page.getByRole('link', { name: 'Плохая' }).click();
+		await expect(page).toHaveURL(/\/campaigns\/[^/]+$/);
+
+		const charts = page.getByRole('region', { name: 'Графики' });
+		for (const name of ['Ставка', 'Расход', /^CPO за \d+ тиков/]) {
+			await expect(charts.getByRole('img', { name })).toBeVisible();
+		}
+
+		const journal = page.getByRole('region', { name: 'Журнал кампании' });
+		await expect(journal.getByRole('row').nth(1)).toBeVisible();
+		const campaignCells = await journal.getByRole('row').locator('td:nth-child(2)').allTextContents();
+		expect(new Set(campaignCells)).toEqual(new Set(['Плохая']));
 	});
 });
