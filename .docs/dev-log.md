@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-10-13 (Phase 5, таск 5)
+
+**Сделано:** Phase 5, таск 5 «Smoke e2e против prod-стека» ✅.
+
+- `tests/e2e/prod-smoke.spec.ts` (5 тестов, serial, без доступа к БД): гость на `/dashboard` → `/login`; админ из `ADMIN_EMAIL` / `ADMIN_PASSWORD` — сброс с seed 42, три «Один тик» без «агент не отработал», в `/journal` есть записи, на `/dashboard` «Расход» не `0,00 ₽`; `/api/health` — 200 `{status:'ok'}` без редиректа; `POST /api/mock/...` без токена — **404, а не 401** (значит, отсёк роутер Traefik, а не приложение); `http://` → редирект на `https://`. Без `E2E_BASE_URL` спека пропускается (`test.skip`).
+- `playwright.config.ts`: при заданном `E2E_BASE_URL` — `baseURL` оттуда, `ignoreHTTPSErrors`, `webServer` отключён, `testMatch` только `prod-smoke.spec.ts` (dev-спеки читают БД и меняют конфиг агента). Без переменной конфиг ведёт себя как раньше. `package.json`: `test:smoke`.
+- Тесты: Vitest не требуется (TS-логики нет). `type-check`, `lint`, `test` (554), `build` зелёные.
+- Вручную (prod-стек за `traefik-local`, `DOMAIN=localhost`, переменные передавались через окружение shell, `.env` не менялся): `E2E_BASE_URL=https://localhost npm run test:smoke` — 5 из 5 за 7 с; `restore-check.sh` на живом `backup` — exit 0 (дамп 4520 `decisions` / рабочая 4532: разница — 3 тика smoke после дампа); порты 3000 и 5434 на хосте закрыты. Потом prod-стек и Traefik остановлены, dev-стек поднят заново; `npm run test:e2e` — 38 passed, 5 skipped (smoke).
+
+**Дальше:** Phase 5, таск 6 «README по развёртыванию и документация фазы» (`README.md`, `prd.md`, `_status.md`, итог фазы и риск «нет ограничения попыток входа» в `dev-log`).
+
+**Заметки:**
+
+- Smoke **меняет данные целевого стека**: «Сбросить» архивирует активный прогон и создаёт новый, тики идут тем движком, что выбран в `/simulator` (на VPS с LLM — платные вызовы). Конфиг агента smoke не трогает — БД ему недоступна. Предупреждение — в README (таск 6).
+- Первая `up --build` prod-стека упала на `next build` внутри Docker (три образа собирались параллельно, причину не выяснили); повторная сборка прошла без ошибок. В README — требование «2 ГБ RAM или своп» и совет собрать образы по одному.
+- Из Git Bash на Windows `docker compose exec backup sh /ops/…` ломается: путь `/ops` превращается в `C:/Program Files/Git/ops` — нужен `MSYS_NO_PATHCONV=1`. В README команды давать для Linux-сервера.
+- Имя проекта `adpilot` у dev- и prod-стека одно, поэтому на одной машине они не живут одновременно: перед prod-проверкой dev-стек останавливается. Том `db_data` общий, поэтому данные dev-БД сохраняются при переключении.
+- Dev-`web` в Docker занимает порт 3000, и `playwright` переиспользовал бы его без `LLM_CLIENT=fake` — перед `test:e2e` Docker-`web` и `worker` останавливаются.
+
+---
+
 ## 2026-10-13 (Phase 5, таск 4)
 
 **Сделано:** Phase 5, таск 4 «Бэкап и проверка восстановления» ✅.
